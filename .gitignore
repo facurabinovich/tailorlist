@@ -59,6 +59,9 @@ Thumbs.db
 # Streamlit
 .streamlit/cache/
 
+# Models not tracked
+models/rf_classifier.pkl
+
 # Claude
 .claude/
 CLAUDE.md

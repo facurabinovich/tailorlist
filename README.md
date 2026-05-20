@@ -60,10 +60,7 @@ DB_NAME = "spotify_analytics"
 
 ## ML models
 
-Two pre-trained models ship with the repo (`models/`):
-
-- **KMeans** (`kmeans.pkl`) — clusters tracks into 4 groups based on energy, acousticness, valence, tempo, danceability, and speechiness. Labels: *High Energy · Dark · Fast*, *High Energy · Happy · Danceable*, *Rap · Danceable · Positive*, *Acoustic · Dark*.
-- **Random Forest** (`rf_classifier.pkl`) — predicts which personal playlist a track belongs to, given its audio features.
+The KMeans model ships with the repo (`models/kmeans.pkl`) — clusters tracks into 4 groups based on energy, acousticness, valence, tempo, danceability, and speechiness. Labels: *High Energy · Dark · Fast*, *High Energy · Happy · Danceable*, *Rap · Danceable · Positive*, *Acoustic · Dark*.
 
 Training notebooks are in `ml/`.
 
