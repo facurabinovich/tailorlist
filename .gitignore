@@ -1,0 +1,63 @@
+# Secrets & credentials
+.env
+.env.local
+.env.*.local
+.streamlit/secrets.toml
+
+# Spotify OAuth/CC token caches
+.cache
+.spotify_cache
+.spotify_cache-*
+.spotify_token_cache
+/tmp/.spotify_cache
+
+# SQLite fallback DB
+*.db
+data/audio_fallback.db
+
+# Dev-only data files
+data/dev_collection.json
+export_events.json
+
+# Large data files (not needed in repo)
+data/tracks_features.csv
+data/negatives_*.csv
+
+# Editor backup files
+*.tmp.*
+
+# Word/Office docs (dev notes, not source)
+*.docx
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/cache/
+
+# Claude
+.claude/
