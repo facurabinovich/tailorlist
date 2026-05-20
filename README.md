@@ -1,38 +1,76 @@
-# Spotify Analytics
+# TailorList — Spotify Analytics
 
-A Streamlit app for exploring and analyzing Spotify playlist collections, with audio feature visualizations, ML clustering, and playlist comparison tools.
+A personal Spotify analytics app built with Streamlit. Analyze your own playlists or paste any public Spotify URL to explore audio features, discover patterns, and cluster your music collection with ML.
 
 ## Features
 
-- **Overview** — playlist stats, top artists, release timeline
-- **Playlist Detail** — per-playlist deep dive with genre breakdown
-- **Artist / Album view** — discography explorer
-- **Playlist Comparison** — side-by-side audio DNA diff, cross-playlist duplicates
-- **Audio DNA** — radar charts, feature distributions, decade trends
-- **My Clusters** — KMeans song clustering + manual labeling workflow
-- **Your Collection** — paste any public Spotify playlist URL to analyze it live
+| Page | What it does |
+|---|---|
+| **Overview** | Collection-wide stats — top artists, release timeline, audio feature averages |
+| **Playlist Detail** | Per-playlist deep dive with genre breakdown and track table |
+| **Artist / Album** | Discography explorer with audio feature profiles |
+| **Playlist Comparison** | Side-by-side audio DNA diff, cross-playlist duplicates, unique tracks |
+| **Audio DNA** | Radar charts, feature distributions, decade-by-decade trends |
+| **My Clusters** | KMeans song clustering (4 clusters) + manual labeling workflow |
+| **Your Collection** | Paste any public Spotify playlist URL — analyzed live, no account needed |
 
-## Setup
+## Two modes
+
+- **Facu's Collection** — reads from a personal MySQL database (star schema, 14 playlists, ~450 tracks). Requires DB credentials.
+- **Your Collection** — public mode. Users paste Spotify playlist URLs; tracks are fetched via the Spotify API and enriched with audio features from [ReccoBeats](https://reccobeats.com). No database needed.
+
+## Tech stack
+
+- **Frontend** — [Streamlit](https://streamlit.io)
+- **Data** — pandas, SQLAlchemy + MySQL (personal mode), Spotify Web API
+- **ML** — scikit-learn: KMeans clustering, Random Forest playlist classifier
+- **Viz** — Plotly
+- **Audio features** — [ReccoBeats API](https://reccobeats.com)
+
+## Local setup
 
 ```bash
+git clone https://github.com/facurabinovich/tailorlist.git
+cd tailorlist
+pip install -r requirements.txt
 cp .env.example .env
 # Fill in SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET
-pip install -r requirements.txt
 streamlit run app.py
 ```
 
+The **Your Collection** mode works out of the box with just the Spotify credentials. The DB vars are only needed to enable Facu's Collection.
+
+Get Spotify API credentials at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) — create an app, copy the Client ID and Secret.
+
 ## Deployment (Streamlit Cloud)
 
-Set secrets in the Streamlit Cloud dashboard (equivalent to `.env`):
+Set these in the Streamlit Cloud secrets dashboard:
 
-| Secret | Purpose |
-|---|---|
-| `SPOTIFY_CLIENT_ID` | Spotify app credentials |
-| `SPOTIFY_CLIENT_SECRET` | Spotify app credentials |
-| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | MySQL — only needed for "Facu's Collection" mode |
+```toml
+SPOTIFY_CLIENT_ID = "..."
+SPOTIFY_CLIENT_SECRET = "..."
 
-The **Your Collection** mode works without any database — users paste playlist URLs and data is fetched live via the Spotify API.
+# Only needed for Facu's Collection mode:
+DB_HOST = "..."
+DB_PORT = "3307"
+DB_USER = "..."
+DB_PASSWORD = "..."
+DB_NAME = "spotify_analytics"
+```
 
-## Architecture
+## ML models
 
-See [`CLAUDE.md`](CLAUDE.md) for full architecture details.
+Two pre-trained models ship with the repo (`models/`):
+
+- **KMeans** (`kmeans.pkl`) — clusters tracks into 4 groups based on energy, acousticness, valence, tempo, danceability, and speechiness. Labels: *High Energy · Dark · Fast*, *High Energy · Happy · Danceable*, *Rap · Danceable · Positive*, *Acoustic · Dark*.
+- **Random Forest** (`rf_classifier.pkl`) — predicts which personal playlist a track belongs to, given its audio features.
+
+Training notebooks are in `ml/`.
+
+## ETL pipeline (personal mode)
+
+```bash
+python -m pipeline.run_etl              # full sync
+python -m pipeline.run_etl --skip-enrich  # skip audio feature enrichment
+python -m pipeline.run_etl --enrich-only  # backfill missing audio features only
+```
