@@ -1,9 +1,10 @@
 # ---------------------------------------------------------------------------
 # Shared constants — imported by pages and db modules
 # ---------------------------------------------------------------------------
+import os
 
-# 14 personal playlists: display key → full Spotify name (as stored in DB)
-PLAYLIST_LABELS = {
+# 14 personal playlists (DEV_MODE=1)
+_DEV_PLAYLIST_LABELS = {
     "AQ7": "AQ7",
     "GB7": "GB7",
     "507": "507",
@@ -19,6 +20,19 @@ PLAYLIST_LABELS = {
     "807": "807",
     "BB7": "BB7",
 }
+
+# 5 demo playlists (DEV_MODE=0, production)
+_DEMO_PLAYLIST_LABELS = {
+    "Early Soft Rock":     "Early Soft Rock",
+    "Mighty Nineties":     "Mighty Nineties",
+    "The 52nd Street Radio": "The 52nd Street Radio",
+    "Class of '03":        "Class of '03",
+    "OG Rap":              "OG Rap",
+}
+
+PLAYLIST_LABELS = (
+    _DEV_PLAYLIST_LABELS if os.getenv("DEV_MODE", "1") == "1" else _DEMO_PLAYLIST_LABELS
+)
 
 # KMeans cluster labels (index → name)
 CLUSTER_NAMES = {

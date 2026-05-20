@@ -40,6 +40,9 @@ _ENV_PATH      = _PROJECT_ROOT / ".env"
 _PLAYLISTS_CFG = _PROJECT_ROOT / "playlists.yaml"
 _CACHE_PATH    = _PROJECT_ROOT / ".spotify_token_cache"
 
+# Overridden by --config CLI arg
+_active_playlists_cfg = _PLAYLISTS_CFG
+
 
 # ── Stage runners ─────────────────────────────────────────────────────────────
 
@@ -48,7 +51,7 @@ def _run_extract() -> dict:
     logger.info("── EXTRACT ──────────────────────────────────────────────────")
 
     sp        = authenticate_spotify(env_path=_ENV_PATH, cache_path=_CACHE_PATH)
-    playlists = load_playlists_config(_PLAYLISTS_CFG)
+    playlists = load_playlists_config(_active_playlists_cfg)
 
     playlist_df              = extract_playlist_metadata(sp, playlists)
     songs_df, bridge_df, artists_df = extract_tracks_and_artists(sp, playlists)
@@ -221,6 +224,13 @@ def _parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
+    parser.add_argument(
+        "--config",
+        default=None,
+        metavar="PATH",
+        help="Path to playlists YAML config (default: playlists.yaml next to project root). "
+             "Use playlists_demo.yaml to seed the demo/production collection.",
+    )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--skip-enrich",
@@ -241,7 +251,11 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    global _active_playlists_cfg
     args       = _parse_args()
+    if args.config:
+        _active_playlists_cfg = Path(args.config).resolve()
+        logger.info("Using playlists config: %s", _active_playlists_cfg)
     started_at = datetime.now()
     t0         = time.monotonic()
 

@@ -8,37 +8,6 @@ from config import PAGE_CONFIG
 st.set_page_config(**PAGE_CONFIG)
 
 # ---------------------------------------------------------------------------
-# DEV_MODE startup — run ETL once per server session to keep local DB fresh
-# ---------------------------------------------------------------------------
-import os
-import subprocess
-
-@st.cache_resource
-def _run_etl_on_startup():
-    """Run ETL pipeline once on startup in DEV_MODE. Cached so it only runs once per session."""
-    from dotenv import load_dotenv
-    load_dotenv()
-    if os.getenv("DEV_MODE") == "1":
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info("DEV_MODE=1 — running ETL pipeline on startup...")
-        try:
-            result = subprocess.run(
-                ["python", "-m", "pipeline.run_etl"],
-                capture_output=True,
-                text=True,
-                cwd=os.path.dirname(os.path.abspath(__file__)),
-            )
-            if result.returncode == 0:
-                logger.info("ETL pipeline completed successfully on startup.")
-            else:
-                logger.warning("ETL pipeline exited with code %d: %s", result.returncode, result.stderr)
-        except Exception as e:
-            logger.exception("Failed to run ETL on startup: %s", e)
-
-_run_etl_on_startup()
-
-# ---------------------------------------------------------------------------
 # Navigation — hidden, Enrich registered but excluded from sidebar
 # ---------------------------------------------------------------------------
 pg = st.navigation(
