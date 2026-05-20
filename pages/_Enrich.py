@@ -11,6 +11,31 @@ inject_global_css()
 
 from pipeline.enrich import _fetch, _map_fields, _fetch_fallback
 from spotify_client import get_playlist_tracks
+from db.connection import get_engine
+from sqlalchemy import text as _sql_text
+
+
+def _fetch_fallback_mysql(spotify_id: str) -> dict | None:
+    """Fallback lookup against dim_audio_fallback in Railway MySQL (prod only)."""
+    try:
+        row = get_engine().connect().execute(
+            _sql_text(
+                "SELECT energy, acousticness, valence, tempo, danceability, "
+                "loudness, instrumentalness, speechiness, liveness, mode, duration_ms "
+                "FROM dim_audio_fallback WHERE spotify_id = :sid"
+            ),
+            {"sid": spotify_id},
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "energy": row[0], "acousticness": row[1], "valence": row[2],
+            "tempo": row[3], "danceability": row[4], "loudness": row[5],
+            "instrumentalness": row[6], "speechiness": row[7],
+            "liveness": row[8], "mode": row[9], "duration_ms": row[10],
+        }
+    except Exception:
+        return None
 
 import base64
 with open("assets/spotify-logo-icon/Primary_Logo_Green_RGB.svg", "rb") as f:
@@ -414,7 +439,7 @@ except Exception:
     st.rerun()
 
 if status == "skip":
-    fallback = _fetch_fallback(sid)
+    fallback = _fetch_fallback(sid) or _fetch_fallback_mysql(sid)
     if fallback is not None:
         st.session_state["uc_enriched"].append(
             {**track, **fallback})

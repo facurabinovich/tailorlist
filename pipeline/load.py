@@ -34,26 +34,30 @@ logger = logging.getLogger(__name__)
 def _create_engine(env_path: str | Path | None = None) -> Engine:
     load_dotenv(env_path)
 
-    host = os.getenv("DB_HOST", "localhost")
-    port = int(os.getenv("DB_PORT", 3307))
-    user = os.getenv("DB_USER")
-    password = os.getenv("DB_PASSWORD")
-    database = os.getenv("DB_NAME", "spotify_analytics")
+    raw = os.getenv("DATABASE_URL")
+    if raw:
+        url = raw.replace("mysql://", "mysql+pymysql://", 1)
+        if "charset=" not in url:
+            sep = "&" if "?" in url else "?"
+            url += f"{sep}charset=utf8mb4"
+    else:
+        host = os.getenv("DB_HOST", "localhost")
+        port = int(os.getenv("DB_PORT", 3307))
+        user = os.getenv("DB_USER")
+        password = os.getenv("DB_PASSWORD")
+        database = os.getenv("DB_NAME", "spotify_analytics")
+        if not all([user, password]):
+            raise EnvironmentError("Missing DB_USER or DB_PASSWORD environment variables")
+        url = (
+            f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
+            "?charset=utf8mb4"
+        )
 
-    if not all([user, password]):
-        raise EnvironmentError("Missing DB_USER or DB_PASSWORD environment variables")
-
-    url = (
-        f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
-        "?charset=utf8mb4"
-    )
     engine = create_engine(url, echo=False)
 
     with engine.connect() as conn:
         version = conn.execute(text("SELECT VERSION()")).fetchone()[0]
-        logger.info(
-            "Connected to MySQL %s at %s:%d/%s", version, host, port, database
-        )
+        logger.info("Connected to MySQL %s — %s", version, url.split("@")[-1])
 
     return engine
 
@@ -101,15 +105,16 @@ def _map_duration(value: Any, ranges: list) -> int | None:
 # ── Loaders ───────────────────────────────────────────────────────────────────
 
 def _load_artists(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
-    """
-    INSERT dim_artist rows.
-    Captures: internal_id -> db_id.
-    Unique key: spotify_id — ON DUPLICATE KEY UPDATE returns existing id.
-    """
     logger.info("Loading dim_artist: %d rows", len(df))
     df = df.copy()
 
-    # Deduplicate: keep first non-null spotify_id, allow multiple nulls
+    # Build internal_id → spotify_id before dedup so every SongID can resolve
+    internal_to_spotid: dict[int, str] = {
+        int(row["internal_id"]): row["spotify_id"]
+        for _, row in df.iterrows()
+        if pd.notna(row.get("spotify_id"))
+    }
+
     null_mask = df["spotify_id"].isna()
     df_dedup = pd.concat([
         df[~null_mask].drop_duplicates(subset=["spotify_id"], keep="first"),
@@ -117,8 +122,18 @@ def _load_artists(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
     ]).reset_index(drop=True)
 
     df_dedup["popularity"] = df_dedup["popularity"].fillna(0).astype(int)
-    df_dedup["genres"] = df_dedup["genres"].fillna("")
+    df_dedup["genres"]     = df_dedup["genres"].fillna("")
     df_dedup["spotify_id"] = df_dedup["spotify_id"].where(df_dedup["spotify_id"].notna(), None)
+
+    params = [
+        {
+            "name":       row["name"],
+            "spotify_id": row["spotify_id"],
+            "popularity": int(row["popularity"]),
+            "genres":     row["genres"],
+        }
+        for _, row in df_dedup.iterrows()
+    ]
 
     sql = text("""
         INSERT INTO dim_artist (name, spotify_id, popularity, genres)
@@ -126,44 +141,58 @@ def _load_artists(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
         ON DUPLICATE KEY UPDATE
             name       = VALUES(name),
             popularity = VALUES(popularity),
-            genres     = VALUES(genres),
-            id         = LAST_INSERT_ID(id)
+            genres     = VALUES(genres)
     """)
 
-    count = 0
     with engine.begin() as conn:
-        for _, row in df_dedup.iterrows():
-            result = conn.execute(sql, {
-                "name":       row["name"],
-                "spotify_id": row["spotify_id"],
-                "popularity": int(row["popularity"]),
-                "genres":     row["genres"],
-            })
-            id_maps["artist"][int(row["internal_id"])] = result.lastrowid
-            count += 1
+        conn.execute(sql, params)
 
+    # Rebuild id_maps via SELECT (avoids needing per-row lastrowid)
+    with engine.connect() as conn:
+        spotid_to_db: dict[str, int] = {
+            r[1]: r[0]
+            for r in conn.execute(text("SELECT id, spotify_id FROM dim_artist WHERE spotify_id IS NOT NULL")).fetchall()
+        }
+    for internal_id, spotid in internal_to_spotid.items():
+        if spotid in spotid_to_db:
+            id_maps["artist"][internal_id] = spotid_to_db[spotid]
+
+    count = len(params)
     logger.info("dim_artist: %d rows loaded", count)
     return count
 
 
 def _load_playlists(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
-    """
-    INSERT dim_playlist rows.
-    Unique key: spotify_id — ON DUPLICATE KEY UPDATE returns existing id.
-    """
     logger.info("Loading dim_playlist: %d rows", len(df))
     df = df.copy()
 
     df = df.drop_duplicates(subset=["spotify_id"], keep="first")
-    df["description"]    = df["description"].fillna("")
-    df["owner_id"]       = df["owner_id"].fillna("")
-    df["owner_name"]     = df["owner_name"].fillna("")
-    df["is_public"]      = df["is_public"].fillna(False).astype(bool)
+    df["description"]      = df["description"].fillna("")
+    df["owner_id"]         = df["owner_id"].fillna("")
+    df["owner_name"]       = df["owner_name"].fillna("")
+    df["is_public"]        = df["is_public"].fillna(False).astype(bool)
     df["is_collaborative"] = df["is_collaborative"].fillna(False).astype(bool)
-    df["is_personal"]    = df["is_personal"].fillna(True).astype(bool)
-    df["total_tracks"]   = df["total_tracks"].fillna(0).astype(int)
-    df["followers"]      = df["followers"].fillna(0).astype(int)
-    df["snapshot_id"]    = df["snapshot_id"].fillna("")
+    df["is_personal"]      = df["is_personal"].fillna(True).astype(bool)
+    df["total_tracks"]     = df["total_tracks"].fillna(0).astype(int)
+    df["followers"]        = df["followers"].fillna(0).astype(int)
+    df["snapshot_id"]      = df["snapshot_id"].fillna("")
+
+    params = [
+        {
+            "name":             row["name"],
+            "spotify_id":       row["spotify_id"],
+            "description":      row.get("description", ""),
+            "owner_id":         row.get("owner_id", ""),
+            "owner_name":       row.get("owner_name", ""),
+            "is_public":        bool(row.get("is_public", False)),
+            "is_collaborative": bool(row.get("is_collaborative", False)),
+            "total_tracks":     int(row.get("total_tracks", 0)),
+            "followers":        int(row.get("followers", 0)),
+            "snapshot_id":      row.get("snapshot_id", ""),
+            "is_personal":      bool(row.get("is_personal", True)),
+        }
+        for _, row in df.iterrows()
+    ]
 
     sql = text("""
         INSERT INTO dim_playlist
@@ -182,202 +211,169 @@ def _load_playlists(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
             snapshot_id      = VALUES(snapshot_id),
             is_public        = VALUES(is_public),
             is_collaborative = VALUES(is_collaborative),
-            is_personal      = VALUES(is_personal),
-            id               = LAST_INSERT_ID(id)
+            is_personal      = VALUES(is_personal)
     """)
 
-    count = 0
     with engine.begin() as conn:
-        for _, row in df.iterrows():
-            conn.execute(sql, {
-                "name":             row["name"],
-                "spotify_id":       row["spotify_id"],
-                "description":      row.get("description", ""),
-                "owner_id":         row.get("owner_id", ""),
-                "owner_name":       row.get("owner_name", ""),
-                "is_public":        bool(row.get("is_public", False)),
-                "is_collaborative": bool(row.get("is_collaborative", False)),
-                "total_tracks":     int(row.get("total_tracks", 0)),
-                "followers":        int(row.get("followers", 0)),
-                "snapshot_id":      row.get("snapshot_id", ""),
-                "is_personal":      bool(row.get("is_personal", True)),
-            })
-            count += 1
+        conn.execute(sql, params)
+    count = len(params)
 
     logger.info("dim_playlist: %d rows loaded", count)
     return count
 
 
 def _load_albums(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
-    """
-    INSERT dim_album rows.
-    dim_album has a UNIQUE KEY on spotify_id, but our albums have spotify_id=NULL,
-    so ON DUPLICATE KEY UPDATE won't trigger on re-runs. We use a SELECT-first
-    pattern to avoid duplicates by name.
-    """
     logger.info("Loading dim_album: %d rows", len(df))
     df = df.copy()
 
-    df["name"] = df["name"].fillna("Unknown Album")
+    df["name"]       = df["name"].fillna("Unknown Album")
     df["spotify_id"] = df["spotify_id"].where(df["spotify_id"].notna(), None)
     if "release_date" in df.columns:
         df["release_date"] = pd.to_datetime(df["release_date"], errors="coerce").dt.date
     else:
         df["release_date"] = None
-
     df = df.drop_duplicates(subset=["name"], keep="first")
 
-    insert_sql = text("""
-        INSERT INTO dim_album (name, spotify_id, release_date)
-        VALUES (:name, :spotify_id, :release_date)
-        ON DUPLICATE KEY UPDATE
-            release_date = VALUES(release_date),
-            id           = LAST_INSERT_ID(id)
-    """)
-    select_sql = text("SELECT id FROM dim_album WHERE name = :name LIMIT 1")
-
-    # Pre-load existing album names to avoid inserting duplicates
     with engine.connect() as conn:
-        existing: dict[str, int] = {
-            row[1]: row[0]
-            for row in conn.execute(text("SELECT id, name FROM dim_album")).fetchall()
+        existing: set[str] = {
+            row[0] for row in conn.execute(text("SELECT name FROM dim_album")).fetchall()
         }
 
-    count = 0
-    with engine.begin() as conn:
-        for _, row in df.iterrows():
-            name = row["name"]
-            if name in existing:
-                continue  # already present; name->id resolved at fac_songs time
-
-            rd = row.get("release_date")
-            conn.execute(insert_sql, {
-                "name":         name,
+    new_rows = df[~df["name"].isin(existing)]
+    if not new_rows.empty:
+        params = [
+            {
+                "name":         row["name"],
                 "spotify_id":   row.get("spotify_id"),
-                "release_date": rd if pd.notna(rd) else None,
-            })
-            count += 1
+                "release_date": row.get("release_date") if pd.notna(row.get("release_date")) else None,
+            }
+            for _, row in new_rows.iterrows()
+        ]
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO dim_album (name, spotify_id, release_date)
+                VALUES (:name, :spotify_id, :release_date)
+                ON DUPLICATE KEY UPDATE release_date = VALUES(release_date)
+            """), params)
 
+    count = len(new_rows)
     logger.info("dim_album: %d new rows inserted", count)
     return count
 
 
 def _load_releasedates(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
-    """
-    INSERT dim_releasedate rows.
-    Unique key: full_date — captures full_date -> db_id mapping.
-    """
     logger.info("Loading dim_releasedate: %d rows", len(df))
     df = df.copy()
 
     df["full_date"] = pd.to_datetime(df["full_date"], errors="coerce").dt.date
     df = df.dropna(subset=["full_date"]).drop_duplicates(subset=["full_date"])
-
     for col in ("year", "month", "day", "decade", "year_half", "quarter"):
         df[col] = df[col].astype(int)
 
-    sql = text("""
-        INSERT INTO dim_releasedate
-            (full_date, year, month, day, decade, year_half, quarter)
-        VALUES
-            (:full_date, :year, :month, :day, :decade, :year_half, :quarter)
-        ON DUPLICATE KEY UPDATE
-            year      = VALUES(year),
-            month     = VALUES(month),
-            day       = VALUES(day),
-            decade    = VALUES(decade),
-            year_half = VALUES(year_half),
-            quarter   = VALUES(quarter),
-            id        = LAST_INSERT_ID(id)
-    """)
+    params = [
+        {
+            "full_date": row["full_date"],
+            "year":      int(row["year"]),
+            "month":     int(row["month"]),
+            "day":       int(row["day"]),
+            "decade":    int(row["decade"]),
+            "year_half": int(row["year_half"]),
+            "quarter":   int(row["quarter"]),
+        }
+        for _, row in df.iterrows()
+    ]
 
-    count = 0
     with engine.begin() as conn:
-        for _, row in df.iterrows():
-            result = conn.execute(sql, {
-                "full_date": row["full_date"],
-                "year":      int(row["year"]),
-                "month":     int(row["month"]),
-                "day":       int(row["day"]),
-                "decade":    int(row["decade"]),
-                "year_half": int(row["year_half"]),
-                "quarter":   int(row["quarter"]),
-            })
-            id_maps["releasedate"][row["full_date"]] = result.lastrowid
-            count += 1
+        conn.execute(text("""
+            INSERT INTO dim_releasedate
+                (full_date, year, month, day, decade, year_half, quarter)
+            VALUES
+                (:full_date, :year, :month, :day, :decade, :year_half, :quarter)
+            ON DUPLICATE KEY UPDATE
+                year      = VALUES(year),
+                month     = VALUES(month),
+                day       = VALUES(day),
+                decade    = VALUES(decade),
+                year_half = VALUES(year_half),
+                quarter   = VALUES(quarter)
+        """), params)
 
+    # Rebuild id_maps via SELECT
+    with engine.connect() as conn:
+        for r in conn.execute(text("SELECT id, full_date FROM dim_releasedate")).fetchall():
+            id_maps["releasedate"][r[1]] = r[0]
+
+    count = len(params)
     logger.info("dim_releasedate: %d rows loaded", count)
     return count
 
 
 def _load_dates(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
-    """
-    INSERT dim_date rows (for AddedAt).
-    Unique key: full_date — captures full_date -> db_id mapping.
-    """
     logger.info("Loading dim_date: %d rows", len(df))
     df = df.copy()
 
     df["full_date"] = pd.to_datetime(df["full_date"], errors="coerce").dt.date
     df = df.dropna(subset=["full_date"]).drop_duplicates(subset=["full_date"])
-
     for col in ("day_of_month", "month", "year", "day_of_week",
                 "quarter", "week_of_year", "day_of_year"):
         df[col] = df[col].astype(int)
     df["is_weekend"] = df["is_weekend"].astype(bool)
     df["is_holiday"] = df["is_holiday"].fillna(False).astype(bool)
 
-    sql = text("""
-        INSERT INTO dim_date
-            (full_date, day_of_month, month, year, day_of_week, day_name,
-             month_name, quarter, year_month_str, week_of_year, is_weekend,
-             is_holiday, holiday_name, season, day_of_year)
-        VALUES
-            (:full_date, :day_of_month, :month, :year, :day_of_week, :day_name,
-             :month_name, :quarter, :year_month_str, :week_of_year, :is_weekend,
-             :is_holiday, :holiday_name, :season, :day_of_year)
-        ON DUPLICATE KEY UPDATE
-            day_of_month  = VALUES(day_of_month),
-            month         = VALUES(month),
-            year          = VALUES(year),
-            day_of_week   = VALUES(day_of_week),
-            day_name      = VALUES(day_name),
-            month_name    = VALUES(month_name),
-            quarter       = VALUES(quarter),
-            year_month_str = VALUES(year_month_str),
-            week_of_year  = VALUES(week_of_year),
-            is_weekend    = VALUES(is_weekend),
-            is_holiday    = VALUES(is_holiday),
-            holiday_name  = VALUES(holiday_name),
-            season        = VALUES(season),
-            day_of_year   = VALUES(day_of_year),
-            id            = LAST_INSERT_ID(id)
-    """)
+    params = [
+        {
+            "full_date":      row["full_date"],
+            "day_of_month":   int(row["day_of_month"]),
+            "month":          int(row["month"]),
+            "year":           int(row["year"]),
+            "day_of_week":    int(row["day_of_week"]),
+            "day_name":       row["day_name"],
+            "month_name":     row["month_name"],
+            "quarter":        int(row["quarter"]),
+            "year_month_str": row["year_month_str"],
+            "week_of_year":   int(row["week_of_year"]),
+            "is_weekend":     bool(row["is_weekend"]),
+            "is_holiday":     bool(row["is_holiday"]),
+            "holiday_name":   row.get("holiday_name") if pd.notna(row.get("holiday_name")) else None,
+            "season":         row.get("season"),
+            "day_of_year":    int(row["day_of_year"]),
+        }
+        for _, row in df.iterrows()
+    ]
 
-    count = 0
     with engine.begin() as conn:
-        for _, row in df.iterrows():
-            hn = row.get("holiday_name")
-            result = conn.execute(sql, {
-                "full_date":      row["full_date"],
-                "day_of_month":   int(row["day_of_month"]),
-                "month":          int(row["month"]),
-                "year":           int(row["year"]),
-                "day_of_week":    int(row["day_of_week"]),
-                "day_name":       row["day_name"],
-                "month_name":     row["month_name"],
-                "quarter":        int(row["quarter"]),
-                "year_month_str": row["year_month_str"],
-                "week_of_year":   int(row["week_of_year"]),
-                "is_weekend":     bool(row["is_weekend"]),
-                "is_holiday":     bool(row["is_holiday"]),
-                "holiday_name":   hn if pd.notna(hn) else None,
-                "season":         row.get("season"),
-                "day_of_year":    int(row["day_of_year"]),
-            })
-            id_maps["date"][row["full_date"]] = result.lastrowid
-            count += 1
+        conn.execute(text("""
+            INSERT INTO dim_date
+                (full_date, day_of_month, month, year, day_of_week, day_name,
+                 month_name, quarter, year_month_str, week_of_year, is_weekend,
+                 is_holiday, holiday_name, season, day_of_year)
+            VALUES
+                (:full_date, :day_of_month, :month, :year, :day_of_week, :day_name,
+                 :month_name, :quarter, :year_month_str, :week_of_year, :is_weekend,
+                 :is_holiday, :holiday_name, :season, :day_of_year)
+            ON DUPLICATE KEY UPDATE
+                day_of_month   = VALUES(day_of_month),
+                month          = VALUES(month),
+                year           = VALUES(year),
+                day_of_week    = VALUES(day_of_week),
+                day_name       = VALUES(day_name),
+                month_name     = VALUES(month_name),
+                quarter        = VALUES(quarter),
+                year_month_str = VALUES(year_month_str),
+                week_of_year   = VALUES(week_of_year),
+                is_weekend     = VALUES(is_weekend),
+                is_holiday     = VALUES(is_holiday),
+                holiday_name   = VALUES(holiday_name),
+                season         = VALUES(season),
+                day_of_year    = VALUES(day_of_year)
+        """), params)
 
+    # Rebuild id_maps via SELECT
+    with engine.connect() as conn:
+        for r in conn.execute(text("SELECT id, full_date FROM dim_date")).fetchall():
+            id_maps["date"][r[1]] = r[0]
+
+    count = len(params)
     logger.info("dim_date: %d rows loaded", count)
     return count
 
@@ -404,76 +400,60 @@ def _load_range_mappings(engine: Engine, id_maps: dict) -> None:
 
 
 def _load_songs(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
-    """
-    INSERT dim_songs rows.
-    Unique key: spotify_id — captures SongID -> db_id and spotify_id -> db_id.
-
-    Because the same spotify_id can appear across multiple playlists (multiple
-    SongID values), we build a SongID->spotify_id index before deduplication so
-    every SongID in bridge/fac can still resolve to its single DB row.
-    """
     logger.info("Loading dim_songs: %d rows (%d unique spotify_ids)",
                 len(df), df["spotify_id"].nunique())
-
     df = df.copy()
     df["name"]               = df["name"].fillna("Unknown Song")
     df["spotify_id"]         = df["spotify_id"].fillna("")
     df["is_local"]           = df["is_local"].fillna(False).astype(bool)
     df["has_audio_features"] = df["has_audio_features"].fillna(False).astype(bool)
 
-    # Build SongID -> spotify_id before deduplication
+    # Build SongID -> spotify_id before dedup so all SongIDs resolve after insert
     song_id_to_spotid: dict[int, str] = {
         int(row["SongID"]): row["spotify_id"]
         for _, row in df.iterrows()
     }
 
     df_dedup = df.drop_duplicates(subset=["spotify_id"], keep="first")
+    params = [
+        {
+            "name":               row["name"],
+            "spotify_id":         row["spotify_id"],
+            "is_local":           bool(row["is_local"]),
+            "has_audio_features": bool(row["has_audio_features"]),
+        }
+        for _, row in df_dedup.iterrows()
+    ]
 
-    sql = text("""
-        INSERT INTO dim_songs (name, spotify_id, is_local, has_audio_features)
-        VALUES (:name, :spotify_id, :is_local, :has_audio_features)
-        ON DUPLICATE KEY UPDATE
-            name               = VALUES(name),
-            is_local           = VALUES(is_local),
-            has_audio_features = VALUES(has_audio_features),
-            id                 = LAST_INSERT_ID(id)
-    """)
-
-    spotid_to_db: dict[str, int] = {}
-    count = 0
     with engine.begin() as conn:
-        for _, row in df_dedup.iterrows():
-            result = conn.execute(sql, {
-                "name":               row["name"],
-                "spotify_id":         row["spotify_id"],
-                "is_local":           bool(row["is_local"]),
-                "has_audio_features": bool(row["has_audio_features"]),
-            })
-            db_id = result.lastrowid
-            spotid_to_db[row["spotify_id"]] = db_id
-            count += 1
+        conn.execute(text("""
+            INSERT INTO dim_songs (name, spotify_id, is_local, has_audio_features)
+            VALUES (:name, :spotify_id, :is_local, :has_audio_features)
+            ON DUPLICATE KEY UPDATE
+                name               = VALUES(name),
+                is_local           = VALUES(is_local),
+                has_audio_features = VALUES(has_audio_features)
+        """), params)
 
-    # Propagate mappings to all SongIDs (including duplicate spotify_ids)
+    # Rebuild id_maps via SELECT
+    with engine.connect() as conn:
+        spotid_to_db: dict[str, int] = {
+            r[1]: r[0]
+            for r in conn.execute(text("SELECT id, spotify_id FROM dim_songs")).fetchall()
+        }
     for song_id, spotify_id in song_id_to_spotid.items():
         db_id = spotid_to_db.get(spotify_id)
         if db_id:
             id_maps["songs"][song_id] = db_id
-
     id_maps["songs_by_spotid"] = spotid_to_db
+
+    count = len(params)
     logger.info("dim_songs: %d unique rows loaded, %d SongID mappings",
                 count, len(id_maps["songs"]))
     return count
 
 
 def _load_bridge(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
-    """
-    INSERT bridge_song_artists using INSERT IGNORE.
-
-    ID resolution:
-      - dim_song_id:   SongID -> db_id via id_maps['songs']
-      - dim_artist_id: prefer spotify_artist_id lookup from DB,
-                       fall back to internal_id via id_maps['artist']
-    """
     logger.info("Loading bridge_song_artists: %d rows", len(df))
     df = df.copy()
 
@@ -481,54 +461,55 @@ def _load_bridge(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
     df["is_primary"]        = df["is_primary"].fillna(False).astype(bool)
     df["artist_order"]      = df["artist_order"].fillna(1).astype(int)
 
-    # Build spotify_artist_id -> db_id fallback lookup from DB
     with engine.connect() as conn:
-        rows = conn.execute(text(
-            "SELECT id, spotify_id FROM dim_artist WHERE spotify_id IS NOT NULL"
-        )).fetchall()
-    artist_spotid_to_db: dict[str, int] = {r[1]: r[0] for r in rows}
-
-    sql = text("""
-        INSERT IGNORE INTO bridge_song_artists
-            (dim_song_id, dim_artist_id, spotify_artist_id, is_primary, artist_order)
-        VALUES
-            (:dim_song_id, :dim_artist_id, :spotify_artist_id, :is_primary, :artist_order)
-    """)
+        artist_spotid_to_db: dict[str, int] = {
+            r[1]: r[0]
+            for r in conn.execute(text(
+                "SELECT id, spotify_id FROM dim_artist WHERE spotify_id IS NOT NULL"
+            )).fetchall()
+        }
 
     skipped = 0
-    count = 0
-    with engine.begin() as conn:
-        for _, row in df.iterrows():
-            raw_song_id   = int(row["dim_song_id"])
-            raw_artist_id = int(row["dim_artist_id"])
-            sp_artist_id  = row.get("spotify_artist_id", "") or ""
+    params = []
+    for _, row in df.iterrows():
+        raw_song_id   = int(row["dim_song_id"])
+        raw_artist_id = int(row["dim_artist_id"])
+        sp_artist_id  = row.get("spotify_artist_id", "") or ""
 
-            db_song_id = id_maps["songs"].get(raw_song_id)
-            if db_song_id is None:
-                skipped += 1
-                continue
+        db_song_id = id_maps["songs"].get(raw_song_id)
+        if db_song_id is None:
+            skipped += 1
+            continue
 
-            # Prefer spotify_id lookup; fall back to sequential mapping
-            if sp_artist_id and sp_artist_id in artist_spotid_to_db:
-                db_artist_id = artist_spotid_to_db[sp_artist_id]
-            else:
-                db_artist_id = id_maps["artist"].get(raw_artist_id)
+        if sp_artist_id and sp_artist_id in artist_spotid_to_db:
+            db_artist_id = artist_spotid_to_db[sp_artist_id]
+        else:
+            db_artist_id = id_maps["artist"].get(raw_artist_id)
 
-            if db_artist_id is None:
-                skipped += 1
-                continue
+        if db_artist_id is None:
+            skipped += 1
+            continue
 
-            conn.execute(sql, {
-                "dim_song_id":       db_song_id,
-                "dim_artist_id":     db_artist_id,
-                "spotify_artist_id": sp_artist_id or None,
-                "is_primary":        bool(row["is_primary"]),
-                "artist_order":      int(row["artist_order"]),
-            })
-            count += 1
+        params.append({
+            "dim_song_id":       db_song_id,
+            "dim_artist_id":     db_artist_id,
+            "spotify_artist_id": sp_artist_id or None,
+            "is_primary":        bool(row["is_primary"]),
+            "artist_order":      int(row["artist_order"]),
+        })
+
+    if params:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT IGNORE INTO bridge_song_artists
+                    (dim_song_id, dim_artist_id, spotify_artist_id, is_primary, artist_order)
+                VALUES
+                    (:dim_song_id, :dim_artist_id, :spotify_artist_id, :is_primary, :artist_order)
+            """), params)
 
     if skipped:
         logger.warning("bridge_song_artists: %d rows skipped (unmapped IDs)", skipped)
+    count = len(params)
     logger.info("bridge_song_artists: %d rows loaded", count)
     return count
 
@@ -553,7 +534,6 @@ def _load_fact(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
     df["added_at"] = pd.to_datetime(df.get("added_at"), errors="coerce")
     df["added_by"] = df.get("added_by", pd.Series(dtype=str)).fillna("")
 
-    # Build name-based lookups from DB (all dims are already loaded at this point)
     with engine.connect() as conn:
         playlist_name_to_id: dict[str, int] = {
             r[1]: r[0]
@@ -564,83 +544,66 @@ def _load_fact(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
             for r in conn.execute(text("SELECT id, name FROM dim_album")).fetchall()
         }
 
-    sql = text("""
-        INSERT IGNORE INTO fac_songs
-            (dim_song_id, dim_playlist_id, dim_album_id, dim_releasedate_id,
-             dim_date_added_id, dim_popularity_id, dim_duration_id,
-             dim_audio_features_id, popularity_raw, duration_raw, added_at, added_by)
-        VALUES
-            (:dim_song_id, :dim_playlist_id, :dim_album_id, :dim_releasedate_id,
-             :dim_date_added_id, :dim_popularity_id, :dim_duration_id,
-             :dim_audio_features_id, :popularity_raw, :duration_raw, :added_at, :added_by)
-    """)
-
+    # Resolve all FKs in Python, collect valid rows, then bulk INSERT once
     skipped = 0
-    count = 0
-    with engine.begin() as conn:
-        for _, row in df.iterrows():
-            # ── Required FKs ──────────────────────────────────────────────────
-            # Song: prefer spotify_id lookup; fall back to SongID mapping
-            spotify_id = row.get("SpotifyID", "") or ""
-            db_song_id = id_maps["songs_by_spotid"].get(spotify_id)
-            if db_song_id is None:
-                raw_sid = row.get("dim_song_id")
-                if pd.notna(raw_sid):
-                    db_song_id = id_maps["songs"].get(int(raw_sid))
+    params = []
+    for _, row in df.iterrows():
+        spotify_id = row.get("SpotifyID", "") or ""
+        db_song_id = id_maps["songs_by_spotid"].get(spotify_id)
+        if db_song_id is None:
+            raw_sid = row.get("dim_song_id")
+            if pd.notna(raw_sid):
+                db_song_id = id_maps["songs"].get(int(raw_sid))
 
-            db_playlist_id = playlist_name_to_id.get(row.get("playlist_name", ""))
-            db_album_id    = album_name_to_id.get(row.get("album_name", ""))
+        db_playlist_id = playlist_name_to_id.get(row.get("playlist_name", ""))
+        db_album_id    = album_name_to_id.get(row.get("album_name", ""))
 
-            if None in (db_song_id, db_playlist_id, db_album_id):
-                logger.debug(
-                    "fac_songs skip: song=%r playlist=%r album=%r",
-                    spotify_id, row.get("playlist_name"), row.get("album_name"),
-                )
-                skipped += 1
-                continue
+        if None in (db_song_id, db_playlist_id, db_album_id):
+            logger.debug("fac_songs skip: song=%r playlist=%r album=%r",
+                         spotify_id, row.get("playlist_name"), row.get("album_name"))
+            skipped += 1
+            continue
 
-            # ── Optional FKs ──────────────────────────────────────────────────
-            release_date = row.get("release_date")
-            if pd.notna(release_date):
-                rd = pd.to_datetime(release_date).date()
-                db_releasedate_id = id_maps["releasedate"].get(rd)
-            else:
-                db_releasedate_id = None
+        release_date = row.get("release_date")
+        db_releasedate_id = id_maps["releasedate"].get(pd.to_datetime(release_date).date()) \
+            if pd.notna(release_date) else None
 
-            added_at = row.get("added_at")
-            if pd.notna(added_at):
-                ad = pd.to_datetime(added_at).date()
-                db_date_added_id = id_maps["date"].get(ad)
-            else:
-                db_date_added_id = None
+        added_at = row.get("added_at")
+        db_date_added_id = id_maps["date"].get(pd.to_datetime(added_at).date()) \
+            if pd.notna(added_at) else None
 
-            db_popularity_id = _map_popularity(
-                row.get("popularity_raw"), id_maps["popularity"]
-            )
-            db_duration_id = _map_duration(
-                row.get("duration_raw"), id_maps["duration"]
-            )
+        pop_raw = row.get("popularity_raw")
+        dur_raw = row.get("duration_raw")
 
-            # audio_features_id stays NULL — enrich.py backfills it
-            pop_raw = row.get("popularity_raw")
-            dur_raw = row.get("duration_raw")
+        params.append({
+            "dim_song_id":           db_song_id,
+            "dim_playlist_id":       db_playlist_id,
+            "dim_album_id":          db_album_id,
+            "dim_releasedate_id":    db_releasedate_id,
+            "dim_date_added_id":     db_date_added_id,
+            "dim_popularity_id":     _map_popularity(pop_raw, id_maps["popularity"]),
+            "dim_duration_id":       _map_duration(dur_raw, id_maps["duration"]),
+            "dim_audio_features_id": None,
+            "popularity_raw":        int(pop_raw) if pd.notna(pop_raw) else None,
+            "duration_raw":          float(dur_raw) if pd.notna(dur_raw) else None,
+            "added_at":              added_at if pd.notna(added_at) else None,
+            "added_by":              row.get("added_by", "") or "",
+        })
 
-            conn.execute(sql, {
-                "dim_song_id":           db_song_id,
-                "dim_playlist_id":       db_playlist_id,
-                "dim_album_id":          db_album_id,
-                "dim_releasedate_id":    db_releasedate_id,
-                "dim_date_added_id":     db_date_added_id,
-                "dim_popularity_id":     db_popularity_id,
-                "dim_duration_id":       db_duration_id,
-                "dim_audio_features_id": None,
-                "popularity_raw":        int(pop_raw) if pd.notna(pop_raw) else None,
-                "duration_raw":          float(dur_raw) if pd.notna(dur_raw) else None,
-                "added_at":              added_at if pd.notna(added_at) else None,
-                "added_by":              row.get("added_by", "") or "",
-            })
-            count += 1
+    if params:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT IGNORE INTO fac_songs
+                    (dim_song_id, dim_playlist_id, dim_album_id, dim_releasedate_id,
+                     dim_date_added_id, dim_popularity_id, dim_duration_id,
+                     dim_audio_features_id, popularity_raw, duration_raw, added_at, added_by)
+                VALUES
+                    (:dim_song_id, :dim_playlist_id, :dim_album_id, :dim_releasedate_id,
+                     :dim_date_added_id, :dim_popularity_id, :dim_duration_id,
+                     :dim_audio_features_id, :popularity_raw, :duration_raw, :added_at, :added_by)
+            """), params)
 
+    count = len(params)
     if skipped:
         logger.warning("fac_songs: %d rows skipped (unmapped required FKs)", skipped)
     logger.info("fac_songs: %d rows loaded", count)

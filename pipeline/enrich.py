@@ -43,24 +43,29 @@ _RATE_LIMIT = 1.0  # seconds between requests
 def _create_engine(env_path: str | Path | None = None) -> Engine:
     load_dotenv(env_path)
 
-    host     = os.getenv("DB_HOST", "localhost")
-    port     = int(os.getenv("DB_PORT", 3307))
-    user     = os.getenv("DB_USER")
-    password = os.getenv("DB_PASSWORD")
-    database = os.getenv("DB_NAME", "spotify_analytics")
+    raw = os.getenv("DATABASE_URL")
+    if raw:
+        url = raw.replace("mysql://", "mysql+pymysql://", 1)
+        if "charset=" not in url:
+            sep = "&" if "?" in url else "?"
+            url += f"{sep}charset=utf8mb4"
+    else:
+        host     = os.getenv("DB_HOST", "localhost")
+        port     = int(os.getenv("DB_PORT", 3307))
+        user     = os.getenv("DB_USER")
+        password = os.getenv("DB_PASSWORD")
+        database = os.getenv("DB_NAME", "spotify_analytics")
+        if not all([user, password]):
+            raise EnvironmentError("Missing DB_USER or DB_PASSWORD environment variables")
+        url = (
+            f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
+            "?charset=utf8mb4"
+        )
 
-    if not all([user, password]):
-        raise EnvironmentError("Missing DB_USER or DB_PASSWORD environment variables")
-
-    url = (
-        f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
-        "?charset=utf8mb4"
-    )
     engine = create_engine(url, echo=False)
-
     with engine.connect() as conn:
         version = conn.execute(text("SELECT VERSION()")).fetchone()[0]
-        logger.info("Connected to MySQL %s at %s:%d/%s", version, host, port, database)
+        logger.info("Connected to MySQL %s", version)
 
     return engine
 
@@ -129,6 +134,8 @@ def _fetch_fallback(spotify_id: str) -> dict | None:
     Try to recover audio features from local SQLite fallback DB.
     Returns a mapped dict compatible with _map_fields output, or None if not found.
     """
+    if not os.path.exists(_FALLBACK_DB):
+        return None
     try:
         conn = sqlite3.connect(_FALLBACK_DB)
         cursor = conn.execute(
