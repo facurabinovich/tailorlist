@@ -71,3 +71,12 @@ python -m pipeline.run_etl              # full sync
 python -m pipeline.run_etl --skip-enrich  # skip audio feature enrichment
 python -m pipeline.run_etl --enrich-only  # backfill missing audio features only
 ```
+## Some Captures
+<img width="752" height="317" alt="tailorlist_1" src="https://github.com/user-attachments/assets/1f0b69cc-048d-45cc-b45b-e02b3fce3cd6" />
+<img width="766" height="402" alt="tailorlist_2" src="https://github.com/user-attachments/assets/437b78cd-d409-49cb-a1a7-23e23d8311e8" />
+<img width="926" height="394" alt="tailorlist_3" src="https://github.com/user-attachments/assets/f7c57c97-f522-45e2-915c-e9cb962a8dd8" />
+<img width="923" height="209" alt="tailorlist_4" src="https://github.com/user-attachments/assets/8de136ed-400f-4074-b7bc-27eb9032ad0d" />
+<img width="734" height="418" alt="image" src="https://github.com/user-attachments/assets/83076b80-7bed-438b-b80b-bc5f8f00b8f4" />
+<img width="714" height="308" alt="image" src="https://github.com/user-attachments/assets/58466631-054d-4d7d-b3ad-5548b0b2499a" />
+
+
