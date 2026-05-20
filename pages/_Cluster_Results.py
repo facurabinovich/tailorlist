@@ -314,25 +314,16 @@ if r.get("selected_decades") and len(r["selected_decades"]) < len(r.get("decade_
     _filter_summary.append(f"{len(r['selected_decades'])} decades")
 _filter_str = " · ".join(_filter_summary) if _filter_summary else "all tracks"
 
-# Compute unmatched count for KMeans header — so users know no tracks are lost
+# Compute unmatched count for KMeans header — reads from pre-built filtered DF
+# (same playlist/decade/family filters already applied at submission time)
 _n_unmatched_hdr = 0
 if not _is_category_mode and not _is_sgl_mode:
-    try:
-        _um_hdr = _load_unmatched(_current_mode).drop_duplicates(subset="track_id")
-        if r.get("selected_playlists"):
-            _um_hdr = _um_hdr[_um_hdr["playlist_name"].isin(r["selected_playlists"])]
-        if r.get("selected_decades") and "release_year" in _um_hdr.columns:
-            _um_hdr["_decade"] = (
-                pd.to_numeric(_um_hdr["release_year"], errors="coerce")
-                .dropna().astype(int) // 10 * 10
-            ).astype("Int64").astype(str)
-            _um_hdr = _um_hdr[_um_hdr["_decade"].isin(r["selected_decades"])].drop(columns=["_decade"])
+    _um_hdr = df_unmatched_cat.copy() if not df_unmatched_cat.empty else pd.DataFrame()
+    if not _um_hdr.empty:
         _done_hdr = st.session_state.get("done_tracks", set())
         if _done_hdr:
             _um_hdr = _um_hdr[~_um_hdr["track_id"].isin(_done_hdr)]
         _n_unmatched_hdr = len(_um_hdr)
-    except Exception:
-        pass
 
 if not _is_category_mode and not _is_sgl_mode and _n_unmatched_hdr > 0:
     _tracks_label = (
@@ -731,20 +722,8 @@ elif _is_category_mode:
         f"and were excluded from grouping."
     )
 else:
-    df_unmatched = _load_unmatched(_current_mode).drop_duplicates(subset="track_id")
-    if not df_unmatched.empty:
-        if r.get("selected_playlists"):
-            df_unmatched = df_unmatched[
-                df_unmatched["playlist_name"].isin(r["selected_playlists"])
-            ]
-        if r.get("selected_decades") and "release_year" in df_unmatched.columns:
-            df_unmatched["_decade"] = (
-                pd.to_numeric(df_unmatched["release_year"], errors="coerce")
-                .dropna().astype(int) // 10 * 10
-            ).astype("Int64").astype(str)
-            df_unmatched = df_unmatched[
-                df_unmatched["_decade"].isin(r["selected_decades"])
-            ].drop(columns=["_decade"])
+    # Pre-built at submission time with all filters applied (playlist, decade, family)
+    df_unmatched = df_unmatched_cat.drop_duplicates(subset="track_id").copy() if not df_unmatched_cat.empty else pd.DataFrame()
     _unmatched_title = "⚠️ Unmatched Tracks"
     _unmatched_desc  = f"{len(df_unmatched)} tracks have no audio features and were excluded from clustering."
 

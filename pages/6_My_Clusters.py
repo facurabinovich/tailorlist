@@ -126,11 +126,11 @@ def _assign_family(genre_str: str) -> list[str]:
 def _track_matches_families(genre_str: str, selected_fams: list) -> bool:
     """
     Returns True if ANY of the track's raw genre tags match ANY selected family's keywords.
-    Used for filtering — more permissive than _assign_family (which is first-match-wins for display).
-    Null/empty genre tracks pass when 'Other' is selected.
+    Tracks with NO genre data always pass — they don't belong to any family so the
+    family filter cannot exclude them (they surface in the unmatched section instead).
     """
     if not genre_str or pd.isna(genre_str) or str(genre_str).strip() == "":
-        return "Other" in selected_fams
+        return True  # genre-less tracks are never filtered out by family selection
     genres_lower = genre_str.lower()
     for fam in selected_fams:
         if fam == "Other":
@@ -163,7 +163,7 @@ def _preview_filter(
             out = out[out["artist_genres"].apply(
                 lambda g: any(rg in (g or "") for rg in raw_genres)
             )]
-        elif families and set(families) != set(all_families_available):
+        elif all_families_available is not None and set(families) != set(all_families_available):
             out = out[out["artist_genres"].apply(
                 lambda g: _track_matches_families(g, families)
             )]
@@ -1050,9 +1050,10 @@ if _current_mode != "🔗 Your Collection":
 # ── Optional filters — reactive, outside form ────────────────────────────────
 st.markdown(
     "<p style='color:#B3B3B3;font-size:0.82rem;margin-bottom:8px;margin-top:12px;'>"
-    "Optional filters — leave blank to include everything. "
+    "Optional filters — selecting all families is the same as no filter. "
     "A track is included if it matches <b style='color:#FFFFFF;'>any</b> of the selected genre families — "
-    "e.g. a Rock/Rap crossover track stays in as long as either Rock or Hip-Hop is selected.</p>",
+    "e.g. a Rock/Rap crossover track stays in as long as either Rock or Hip-Hop is selected. "
+    "Clearing all families will select 0 tracks.</p>",
     unsafe_allow_html=True,
 )
 
@@ -1174,28 +1175,18 @@ elif grouping_mode == "🗂️ By category":
         _ginfo_pool = _ginfo_pool[
             _ginfo_pool["decade"].astype("Int64").astype(str).isin(selected_decades)
         ]
-    if "artist_genres" in _ginfo_pool.columns and selected_families and set(selected_families) != set(all_families_available):
+    if "artist_genres" in _ginfo_pool.columns and set(selected_families) != set(all_families_available):
         _ginfo_pool = _ginfo_pool[_ginfo_pool["artist_genres"].apply(
             lambda g: _track_matches_families(g, selected_families)
         )]
     _done_for_info = st.session_state.get("done_tracks", set())
     if _done_for_info:
         _ginfo_pool = _ginfo_pool[~_ginfo_pool["track_id"].isin(_done_for_info)]
-    _missing_msgs = []
     if group_by_genre and "artist_genres" in _ginfo_pool.columns:
         _n_no_genre = int(
             _ginfo_pool[
                 _ginfo_pool["artist_genres"].isna() | (_ginfo_pool["artist_genres"].str.strip() == "")
             ]["track_id"].nunique()
-        )
-        if _n_no_genre > 0:
-            _missing_msgs.append(f"**{_n_no_genre:,}** tracks have no genre data")
-    if _n_no_decade > 0:
-        _missing_msgs.append(f"**{_n_no_decade:,}** have no release decade")
-    if _missing_msgs:
-        st.info(
-            "ℹ️ " + " and ".join(_missing_msgs) +
-            " — you'll be able to assign these to any cluster manually after grouping."
         )
 
 else:
@@ -1360,7 +1351,10 @@ _sg = st.session_state.get("selected_genres", set())
 _grouping_mode_current = st.session_state.get("grouping_mode", "🔬 By audio similarity (KMeans)")
 
 # Evaluated first — before any expensive IO — so the render is immediate
-_n_unmatched_preview = 0  # tracks without audio features; shown in disclaimer, not added to _prev_count
+_n_unmatched_preview = 0  # KMeans: tracks without audio features (secondary note)
+_n_unmatched_cat     = 0  # By category: tracks missing genre/decade (secondary note)
+_n_no_af_cat         = 0  # By category / SGL: tracks without audio features (tertiary note)
+_n_genreless_sgl     = 0  # SGL: genre-less tracks that will go to unmatched (secondary note)
 _no_grouping_dim = (
     grouping_mode == "🗂️ By category"
     and not group_by_decade
@@ -1379,9 +1373,8 @@ elif _grouping_mode_current == "🗂️ By category" and _current_mode != "🔗 
         _cat_filtered = _cat_filtered[
             _cat_filtered["decade"].astype("Int64").astype(str).isin(selected_decades)
         ]
-    # Apply genre filter
-    if selected_families and set(selected_families) != set(all_families_available) \
-            and "artist_genres" in _cat_filtered.columns:
+    # Apply genre filter — empty list means "no families selected → 0 tracks"
+    if "artist_genres" in _cat_filtered.columns and set(selected_families) != set(all_families_available):
         _cat_filtered = _cat_filtered[
             _cat_filtered["artist_genres"].apply(
                 lambda g: _track_matches_families(g, selected_families)
@@ -1391,16 +1384,41 @@ elif _grouping_mode_current == "🗂️ By category" and _current_mode != "🔗 
     _done_set = st.session_state.get("done_tracks", set())
     if _done_set:
         _cat_filtered = _cat_filtered[~_cat_filtered["track_id"].isin(_done_set)]
-    _prev_count = _cat_filtered["track_id"].nunique()
+    # Tracks that will go to unmatched in run_category_grouping (mirrors its logic exactly)
+    _cat_um_mask = pd.Series(False, index=_cat_filtered.index)
+    if group_by_genre and "artist_genres" in _cat_filtered.columns:
+        _cat_um_mask |= (_cat_filtered["artist_genres"].isna() | (_cat_filtered["artist_genres"].str.strip() == ""))
+    if group_by_decade and "decade" in _cat_filtered.columns:
+        _cat_um_mask |= _cat_filtered["decade"].isna()
+    _n_unmatched_cat = int(_cat_filtered[_cat_um_mask]["track_id"].nunique())
+    _n_no_af_cat     = int(_cat_filtered[~_cat_filtered["track_id"].isin(set(df_all["track_id"]))]["track_id"].nunique())
+    _prev_count      = _cat_filtered["track_id"].nunique() - _n_unmatched_cat
 
 elif _grouping_mode_current == "🗂️ By category" and _current_mode == "🔗 Your Collection":
     _cat_filtered = _df_all_full[
         _df_all_full["playlist_name"].isin(st.session_state.get(_pl_key, all_playlists))
     ].copy()
+    if selected_decades and "decade" in _cat_filtered.columns:
+        _cat_filtered = _cat_filtered[
+            _cat_filtered["decade"].astype("Int64").astype(str).isin(selected_decades)
+        ]
+    if "artist_genres" in _cat_filtered.columns and set(selected_families) != set(all_families_available):
+        _cat_filtered = _cat_filtered[
+            _cat_filtered["artist_genres"].apply(
+                lambda g: _track_matches_families(g, selected_families)
+            )
+        ]
     _done_set = st.session_state.get("done_tracks", set())
     if _done_set:
         _cat_filtered = _cat_filtered[~_cat_filtered["track_id"].isin(_done_set)]
-    _prev_count = _cat_filtered["track_id"].nunique()
+    _cat_um_mask = pd.Series(False, index=_cat_filtered.index)
+    if group_by_genre and "artist_genres" in _cat_filtered.columns:
+        _cat_um_mask |= (_cat_filtered["artist_genres"].isna() | (_cat_filtered["artist_genres"].str.strip() == ""))
+    if group_by_decade and "decade" in _cat_filtered.columns:
+        _cat_um_mask |= _cat_filtered["decade"].isna()
+    _n_unmatched_cat = int(_cat_filtered[_cat_um_mask]["track_id"].nunique())
+    _n_no_af_cat     = int(_cat_filtered[~_cat_filtered["track_id"].isin(set(df_all["track_id"]))]["track_id"].nunique())
+    _prev_count      = _cat_filtered["track_id"].nunique() - _n_unmatched_cat
 
 elif _grouping_mode_current == "🏷️ By specific genre":
     _sgl_preview_genres = _sgl_checked_genres
@@ -1416,11 +1434,27 @@ elif _grouping_mode_current == "🏷️ By specific genre":
         _done_set = st.session_state.get("done_tracks", set())
         if _done_set:
             _sgl_preview_pool = _sgl_preview_pool[~_sgl_preview_pool["track_id"].isin(_done_set)]
-        _sgl_pool_total = _sgl_preview_pool["track_id"].nunique()
-        _prev_count = int(_sgl_preview_pool[
-            _sgl_preview_pool["artist_genres"].apply(
+        # Scope the disclaimer to tracks that belong to any selected genre family;
+        # tracks outside selected families are intentionally excluded (not "unmatched").
+        if selected_families and set(selected_families) != set(all_families_available):
+            _sgl_family_pool = _sgl_preview_pool[_sgl_preview_pool["artist_genres"].apply(
+                lambda g: _track_matches_families(g, selected_families)
+            )]
+        else:
+            _sgl_family_pool = _sgl_preview_pool
+        _sgl_pool_total  = _sgl_family_pool["track_id"].nunique()
+        _prev_count      = int(_sgl_family_pool[
+            _sgl_family_pool["artist_genres"].apply(
                 lambda g: bool({t.strip() for t in (g or "").split(",")} & _sgl_preview_genres)
             )
+        ]["track_id"].nunique())
+        # Genre-less tracks in pool → will go to unmatched (secondary note)
+        _n_genreless_sgl = int(_sgl_family_pool[
+            _sgl_family_pool["artist_genres"].isna() | (_sgl_family_pool["artist_genres"].str.strip() == "")
+        ]["track_id"].nunique())
+        # No-AF tracks in pool (tertiary note — shared variable with By category)
+        _n_no_af_cat     = int(_sgl_family_pool[
+            ~_sgl_family_pool["track_id"].isin(set(df_all["track_id"]))
         ]["track_id"].nunique())
 
 else:
@@ -1440,10 +1474,19 @@ else:
         _unmatched_preview = _unmatched_preview[
             _unmatched_preview["playlist_name"].isin(_pl_now)
         ].drop_duplicates(subset="track_id")
-        if selected_decades:
+        # load_unmatched_tracks() returns release_year, not decade — derive it
+        if selected_decades and "release_year" in _unmatched_preview.columns:
+            _unmatched_preview["_d"] = (
+                pd.to_numeric(_unmatched_preview["release_year"], errors="coerce")
+                .dropna().astype(int) // 10 * 10
+            ).astype("Int64").astype(str)
             _unmatched_preview = _unmatched_preview[
-                _unmatched_preview["decade"].astype("Int64").astype(str).isin(selected_decades)
-            ] if "decade" in _unmatched_preview.columns else _unmatched_preview
+                _unmatched_preview["_d"].isin(selected_decades)
+            ].drop(columns=["_d"])
+        if "artist_genres" in _unmatched_preview.columns and set(selected_families) != set(all_families_available):
+            _unmatched_preview = _unmatched_preview[_unmatched_preview["artist_genres"].apply(
+                lambda g: _track_matches_families(g, selected_families)
+            )]
         if _manual_assigned_ids:
             _unmatched_preview = _unmatched_preview[
                 ~_unmatched_preview["track_id"].isin(_manual_assigned_ids)
@@ -1459,8 +1502,8 @@ else:
             _yc_unmatched_preview = _yc_unmatched_preview[
                 _yc_unmatched_preview["_decade"].isin(selected_decades)
             ].drop(columns=["_decade"])
-        if selected_families and set(selected_families) != set(all_families_available) \
-                and "artist_genres" in _yc_unmatched_preview.columns:
+        if "artist_genres" in _yc_unmatched_preview.columns \
+                and set(selected_families) != set(all_families_available):
             _yc_unmatched_preview = _yc_unmatched_preview[
                 _yc_unmatched_preview["artist_genres"].apply(
                     lambda g: _track_matches_families(g, selected_families)
@@ -1484,38 +1527,72 @@ else:
 
 if _no_grouping_dim:
     st.warning("⚠️ Select at least one grouping dimension — check **Decade**, **Genre family**, or both.")
+elif _prev_count == 0 and _n_unmatched_cat > 0:
+    st.warning(
+        f"⚠️ All {_n_unmatched_cat:,} tracks in your selection are missing genre/decade data — "
+        f"they'll all go to Unmatched for manual assignment. No clusters will be created automatically."
+    )
 elif _prev_count == 0:
     st.error("⚠️ No tracks match current filters — adjust before running.")
-elif _prev_count < 4:
+elif _grouping_mode_current == "🔬 By audio similarity (KMeans)" and _prev_count < 4:
     st.warning(f"⚠️ Only {_prev_count} tracks selected — need at least 4 to cluster.")
 else:
     _n_done = len(st.session_state.get("done_tracks", set()))
     _done_label = ""
+    _count_verb = (
+        "will be grouped" if _grouping_mode_current in ("🗂️ By category", "🏷️ By specific genre")
+        else "selected"
+    )
     st.markdown(
         f"<div style='background:#1a1a1a;border:1px solid #333;border-radius:10px;"
         f"padding:10px 18px;margin-bottom:8px;'>"
         f"<span style='color:#1DB954;font-weight:800;font-size:1rem;'>🎯 {_prev_count:,} "
         f"tracks</span>"
-        f"<span style='color:#B3B3B3;font-size:0.88rem;'> selected · {_k_label}{_done_label}</span>"
+        f"<span style='color:#B3B3B3;font-size:0.88rem;'> {_count_verb} · {_k_label}{_done_label}</span>"
         f"</div>",
         unsafe_allow_html=True,
     )
-    if _grouping_mode_current == "🏷️ By specific genre":
-        _sgl_no_match = _sgl_pool_total - _prev_count
-        if _sgl_no_match > 0:
-            st.markdown(
-                f"<p style='color:#B3B3B3;font-size:0.75rem;margin-top:-4px;'>"
-                f"ℹ️ {_sgl_no_match:,} tracks in your selection have no matching genre tag "
-                f"and won't appear in any cluster.</p>",
-                unsafe_allow_html=True,
-            )
-    if _n_unmatched_preview > 0 and _grouping_mode_current == "🔬 By audio similarity (KMeans)":
+    # ── Secondary note: what goes to Unmatched Tracks ────────────────────────
+    if _grouping_mode_current == "🔬 By audio similarity (KMeans)" and _n_unmatched_preview > 0:
+        # KMeans: no audio features = unmatched
         st.markdown(
             f"<p style='color:#B3B3B3;font-size:0.75rem;margin-top:-4px;'>"
             f"ℹ️ + {_n_unmatched_preview:,} tracks without audio features will appear in "
             f"Unmatched Tracks after running for manual assignment.</p>",
             unsafe_allow_html=True,
         )
+    elif _grouping_mode_current == "🗂️ By category" and _n_unmatched_cat > 0:
+        # By category: missing genre/decade = unmatched
+        _cat_um_reasons = []
+        if group_by_genre:
+            _cat_um_reasons.append("no genre data")
+        if group_by_decade:
+            _cat_um_reasons.append("no release decade")
+        _cat_um_str = " or ".join(_cat_um_reasons) or "missing data"
+        st.markdown(
+            f"<p style='color:#B3B3B3;font-size:0.75rem;margin-top:-4px;'>"
+            f"ℹ️ + {_n_unmatched_cat:,} tracks have {_cat_um_str} → will appear in "
+            f"Unmatched Tracks after running for manual assignment.</p>",
+            unsafe_allow_html=True,
+        )
+    elif _grouping_mode_current == "🏷️ By specific genre" and _n_genreless_sgl > 0:
+        # SGL: no genre data = unmatched
+        st.markdown(
+            f"<p style='color:#B3B3B3;font-size:0.75rem;margin-top:-4px;'>"
+            f"ℹ️ + {_n_genreless_sgl:,} tracks have no genre data → will appear in "
+            f"Unmatched Tracks after running for manual assignment.</p>",
+            unsafe_allow_html=True,
+        )
+    # ── Tertiary note: no-audio-features tracks (By category and SGL only) ──
+    if _grouping_mode_current in ("🗂️ By category", "🏷️ By specific genre") and _n_no_af_cat > 0:
+        st.markdown(
+            f"<p style='color:#B3B3B3;font-size:0.75rem;margin-top:-4px;'>"
+            f"ℹ️ + {_n_no_af_cat:,} tracks without audio features are included — "
+            f"they'll be grouped like all others (clusters if they have genre/decade data, "
+            f"Unmatched if not).</p>",
+            unsafe_allow_html=True,
+        )
+    # ── Duplicate note (KMeans only) ──────────────────────────────────────────
     _total_dupes = _yc_cross_dupes_total + _intra_dupes
     if _total_dupes > 0 and _grouping_mode_current == "🔬 By audio similarity (KMeans)":
         _dupe_parts = []
@@ -1528,15 +1605,6 @@ else:
             f"ℹ️ {_total_dupes} duplicate(s) counted once ({' · '.join(_dupe_parts)}) — no tracks are lost. "
             f"If Playlist Comparison shows one more, it's likely the same song in two different versions "
             f"(e.g. studio vs live recording) with different Spotify IDs — counted as separate tracks here.</p>",
-            unsafe_allow_html=True,
-        )
-    _n_no_features = _total_collection_size - len(df_all)
-    if _n_no_features > 0 and _grouping_mode_current == "🗂️ By category":
-        st.markdown(
-            f"<p style='color:#B3B3B3;font-size:0.75rem;margin-top:-4px;'>"
-            f"ℹ️ Category grouping includes all tracks — even the {_n_no_features:,} whose audio features "
-            f"couldn't be retrieved from ReccoBeats. This is why the count may be higher than in "
-            f"KMeans mode, which only clusters tracks with audio data.</p>",
             unsafe_allow_html=True,
         )
     if _prev_count < 100:
@@ -1607,13 +1675,20 @@ if submitted:
                 df_for_grouping = df_for_grouping[
                     df_for_grouping["decade"].astype("Int64").astype(str).isin(selected_decades)
                 ]
-            if "artist_genres" in df_for_grouping.columns:
-                if selected_families and set(selected_families) != set(all_families_available):
-                    df_for_grouping = df_for_grouping[df_for_grouping["artist_genres"].apply(
-                        lambda g: _track_matches_families(g, selected_families)
-                    )]
+            if "artist_genres" in df_for_grouping.columns and set(selected_families) != set(all_families_available):
+                df_for_grouping = df_for_grouping[df_for_grouping["artist_genres"].apply(
+                    lambda g: _track_matches_families(g, selected_families)
+                )]
         else:
             df_for_grouping = _df_all_full[_df_all_full["playlist_name"].isin(selected_playlists)].copy()
+            if selected_decades and "decade" in df_for_grouping.columns:
+                df_for_grouping = df_for_grouping[
+                    df_for_grouping["decade"].astype("Int64").astype(str).isin(selected_decades)
+                ]
+            if "artist_genres" in df_for_grouping.columns and set(selected_families) != set(all_families_available):
+                df_for_grouping = df_for_grouping[df_for_grouping["artist_genres"].apply(
+                    lambda g: _track_matches_families(g, selected_families)
+                )]
 
         _done = st.session_state.get("done_tracks", set())
         if _done:
@@ -1691,6 +1766,12 @@ if submitted:
         if _done:
             df_for_sgl = df_for_sgl[~df_for_sgl["track_id"].isin(_done)]
 
+        # Decade is a pre-filter in SGL mode (same as all other modes)
+        if selected_decades and "decade" in df_for_sgl.columns:
+            df_for_sgl = df_for_sgl[
+                df_for_sgl["decade"].astype("Int64").astype(str).isin(selected_decades)
+            ]
+
         _group_by_decade_sgl = st.session_state.get("specific_genre_decade", False)
 
         with st.spinner("Grouping tracks by genre..."):
@@ -1700,12 +1781,13 @@ if submitted:
             st.warning("No tracks matched the selected genres. Try selecting different genres.")
             st.stop()
 
+        # SGL unmatched = tracks with NO genre data (they can't match any specific genre).
+        # Tracks WITH genre data that don't match any selected genre are silently excluded.
         _matched_sgl_ids = set(df_clust_sgl["track_id"])
-        _df_unmatched_sgl = (
-            df_for_sgl[~df_for_sgl["track_id"].isin(_matched_sgl_ids)]
-            .drop_duplicates(subset="track_id")
-            .copy()
-        )
+        _df_unmatched_sgl = df_for_sgl[
+            (~df_for_sgl["track_id"].isin(_matched_sgl_ids))
+            & (df_for_sgl["artist_genres"].isna() | (df_for_sgl["artist_genres"].str.strip() == ""))
+        ].drop_duplicates(subset="track_id").copy()
 
         _k_sgl = df_clust_sgl["cluster"].nunique()
         _name_map_sgl = {
@@ -1768,7 +1850,7 @@ if submitted:
                     lambda g: (not g or pd.isna(g) or str(g).strip() == "")
                               or any(rg in (g or "") for rg in _sg_submit)
                 )]
-            elif selected_families and set(selected_families) != set(all_families_available):
+            elif set(selected_families) != set(all_families_available):
                 df_filtered = df_filtered[df_filtered["artist_genres"].apply(
                     lambda g: _track_matches_families(g, selected_families)
                 )]
@@ -1781,6 +1863,31 @@ if submitted:
             st.stop()
 
         track_ids = tuple(sorted(df_filtered["track_id"].tolist()))
+
+        # Pre-build filtered unmatched DF — same playlist/decade/family filters as the
+        # clustering pool so that _Cluster_Results.py never shows out-of-scope tracks.
+        _unmatched_pre = _load_unmatched(_current_mode)
+        if not _unmatched_pre.empty:
+            _unmatched_pre = _unmatched_pre[
+                _unmatched_pre["playlist_name"].isin(selected_playlists)
+            ].drop_duplicates(subset="track_id")
+            if selected_decades and "release_year" in _unmatched_pre.columns:
+                _unmatched_pre["_d"] = (
+                    pd.to_numeric(_unmatched_pre["release_year"], errors="coerce")
+                    .dropna().astype(int) // 10 * 10
+                ).astype("Int64").astype(str)
+                _unmatched_pre = _unmatched_pre[
+                    _unmatched_pre["_d"].isin(selected_decades)
+                ].drop(columns=["_d"])
+            if "artist_genres" in _unmatched_pre.columns and set(selected_families) != set(all_families_available):
+                _unmatched_pre = _unmatched_pre[_unmatched_pre["artist_genres"].apply(
+                    lambda g: _track_matches_families(g, selected_families)
+                )]
+            _done_unm = st.session_state.get("done_tracks", set())
+            if _done_unm:
+                _unmatched_pre = _unmatched_pre[~_unmatched_pre["track_id"].isin(_done_unm)]
+        else:
+            _unmatched_pre = pd.DataFrame()
 
         _k_spinner = "Finding optimal k…" if k_mode != "Manual" else "Analyzing clusters…"
         with st.spinner(_k_spinner):
@@ -1826,6 +1933,7 @@ if submitted:
             "track_ids":         track_ids,
             "grouping_mode":     _grouping_mode_submit,
             "total_playlists":   len(all_playlists),
+            "df_unmatched_cat":  _unmatched_pre,
         }
         st.switch_page("pages/_Cluster_Results.py")
 
