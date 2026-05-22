@@ -1009,9 +1009,9 @@ for rank, row in cluster_sorted.iterrows():
                                 key=f"confirm_yes_{rank}_{i}",
                                 type="primary",
                             ):
-                                with st.spinner("Saving…"):
-                                    save_cluster_progress_bulk(user_key, list(cluster_track_ids), status="done")
                                 if os.getenv("DEV_MODE") != "1":
+                                    with st.spinner("Saving…"):
+                                        save_cluster_progress_bulk(user_key, list(cluster_track_ids), status="done")
                                     try:
                                         from db.queries import track_event as _te_exp
                                         _te_exp("export_click", page="Cluster Results",
@@ -1038,9 +1038,9 @@ for rank, row in cluster_sorted.iterrows():
                             if _n_unassigned_here > 0:
                                 st.session_state[_confirm_key] = True
                             else:
-                                with st.spinner("Saving…"):
-                                    save_cluster_progress_bulk(user_key, list(cluster_track_ids), status="done")
                                 if os.getenv("DEV_MODE") != "1":
+                                    with st.spinner("Saving…"):
+                                        save_cluster_progress_bulk(user_key, list(cluster_track_ids), status="done")
                                     try:
                                         from db.queries import track_event as _te_exp
                                         _te_exp("export_click", page="Cluster Results",
@@ -1197,11 +1197,12 @@ def _render_unmatched_section():
             )
 
             _save_errors = []
-            for _tid, _cname in _just_assigned.items():
-                try:
-                    save_cluster_progress(user_key, _tid, status="manual", cluster_name=_cname)
-                except Exception as _e:
-                    _save_errors.append(str(_e))
+            if os.getenv("DEV_MODE") != "1":
+                for _tid, _cname in _just_assigned.items():
+                    try:
+                        save_cluster_progress(user_key, _tid, status="manual", cluster_name=_cname)
+                    except Exception as _e:
+                        _save_errors.append(str(_e))
             if _save_errors:
                 st.toast(f"⚠️ DB save failed: {_save_errors[0]}", icon="🚨")
                 st.session_state["_manual_save_error"] = _save_errors[0]

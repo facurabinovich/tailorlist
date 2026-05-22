@@ -204,18 +204,19 @@ if not to_enrich or cursor >= total:
     if not st.session_state.get("uc_session_id"):
         st.session_state["uc_session_id"] = str(uuid.uuid4())
 
-    # Persist YC session to MySQL
-    try:
-        save_uc_session(
-            session_id = st.session_state["uc_session_id"],
-            enriched   = st.session_state.get("uc_enriched", []),
-            skipped    = st.session_state.get("uc_skipped", []),
-            failed     = st.session_state.get("uc_failed", []),
-            playlists  = st.session_state.get("uc_playlists", []),
-        )
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning("Failed to save YC session: %s", e)
+    # Persist YC session to MySQL (skipped in DEV_MODE)
+    if os.getenv("DEV_MODE") != "1":
+        try:
+            save_uc_session(
+                session_id = st.session_state["uc_session_id"],
+                enriched   = st.session_state.get("uc_enriched", []),
+                skipped    = st.session_state.get("uc_skipped", []),
+                failed     = st.session_state.get("uc_failed", []),
+                playlists  = st.session_state.get("uc_playlists", []),
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Failed to save YC session: %s", e)
 
     # Track enrichment completion
     if os.getenv("DEV_MODE") != "1":

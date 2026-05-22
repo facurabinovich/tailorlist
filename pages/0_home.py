@@ -45,7 +45,8 @@ if (_sid
         st.session_state["uc_enrichment_state"] = "idle"
         st.session_state["uc_session_id"]       = _sid
         st.session_state["mode"]                = "🔗 Your Collection"
-        touch_uc_session(_sid)
+        if os.getenv("DEV_MODE") != "1":
+            touch_uc_session(_sid)
     else:
         st.session_state["_session_expired"] = True
         st.query_params.pop("sid", None)
@@ -561,7 +562,7 @@ localStorage.removeItem('tailorlist_sid');
                             st.session_state["uc_active"] = False
                             st.session_state["uc_enrichment_state"] = "idle"
                             # Update persisted session with new playlist list
-                            if st.session_state.get("uc_session_id"):
+                            if st.session_state.get("uc_session_id") and os.getenv("DEV_MODE") != "1":
                                 try:
                                     from db.queries import save_uc_session
                                     save_uc_session(
