@@ -431,8 +431,7 @@ def _load_songs(engine: Engine, df: pd.DataFrame, id_maps: dict) -> int:
             VALUES (:name, :spotify_id, :is_local, :has_audio_features)
             ON DUPLICATE KEY UPDATE
                 name               = VALUES(name),
-                is_local           = VALUES(is_local),
-                has_audio_features = VALUES(has_audio_features)
+                is_local           = VALUES(is_local)
         """), params)
 
     # Rebuild id_maps via SELECT

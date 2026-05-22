@@ -1045,6 +1045,7 @@ selected_playlists = st.multiselect(
 if _current_mode != "🔗 Your Collection":
     if st.button("🔄 Refresh track library", key="refresh_library", help="Reload tracks from DB — use after adding new playlists"):
         load_data_fc.clear()
+        load_all_grouping_fc.clear()
         st.rerun()
 
 # ── Optional filters — reactive, outside form ────────────────────────────────
