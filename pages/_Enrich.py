@@ -62,6 +62,7 @@ if os.getenv("DEV_MODE") != "1" and not st.session_state.get("_enrichment_start_
             event      = "enrichment_start",
             page       = "Enrich",
             session_id = _proxy_sid,
+            visitor_id = st.session_state.get("visitor_id"),
         )
         st.session_state["_enrichment_start_tracked"] = True
     except Exception:
@@ -226,6 +227,7 @@ if not to_enrich or cursor >= total:
                 event      = "enrichment_complete",
                 page       = "Enrich",
                 session_id = _real_sid,
+                visitor_id = st.session_state.get("visitor_id"),
             )
             # Backfill the enrichment_start row with the real session_id
             with get_engine().begin() as conn:

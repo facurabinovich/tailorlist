@@ -218,20 +218,25 @@ DDL = [
         playlists_json LONGTEXT,
         created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        KEY idx_session_id (session_id),
-        KEY idx_created_at (created_at)
+        last_seen_at   TIMESTAMP NULL,
+        KEY idx_session_id  (session_id),
+        KEY idx_created_at  (created_at),
+        KEY idx_last_seen   (last_seen_at)
     )
     """,
     """
     CREATE TABLE IF NOT EXISTS app_analytics (
-        id         INT AUTO_INCREMENT PRIMARY KEY,
-        event      VARCHAR(50) NOT NULL,
-        page       VARCHAR(50),
-        session_id VARCHAR(36),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        event       VARCHAR(50) NOT NULL,
+        page        VARCHAR(50),
+        session_id  VARCHAR(36),
+        visitor_id  VARCHAR(36),
+        properties  JSON,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         KEY idx_event      (event),
         KEY idx_created_at (created_at),
-        KEY idx_session_id (session_id)
+        KEY idx_session_id (session_id),
+        KEY idx_visitor_id (visitor_id)
     )
     """,
     # ── dim_audio_fallback (migrated from SQLite) ─────────────────────────────
@@ -297,5 +302,21 @@ with engine.begin() as conn:
             "VALUES (:id, :name, :lo, :hi)"
         ), {"id": row[0], "name": row[1], "lo": row[2], "hi": row[3]})
 print(f"  {len(DURATION_SEED)} rows.")
+
+print("Applying analytics schema migrations (safe to re-run)...")
+_migrations = [
+    ("app_analytics", "ADD COLUMN visitor_id VARCHAR(36)"),
+    ("app_analytics", "ADD COLUMN properties JSON"),
+    ("app_analytics", "ADD INDEX idx_visitor_id (visitor_id)"),
+    ("uc_sessions",   "ADD COLUMN last_seen_at TIMESTAMP NULL"),
+    ("uc_sessions",   "ADD INDEX idx_last_seen (last_seen_at)"),
+]
+with engine.begin() as conn:
+    for table, clause in _migrations:
+        try:
+            conn.execute(text(f"ALTER TABLE {table} {clause}"))
+            print(f"  ✓ {table}: {clause}")
+        except Exception as e:
+            print(f"  · {table}: {clause} — skipped ({e})")
 
 print("Schema ready.")

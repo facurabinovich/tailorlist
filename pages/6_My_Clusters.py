@@ -1746,6 +1746,18 @@ if submitted:
             "df_unmatched_cat":  df_unmatched_cat,
             "total_playlists":   len(all_playlists),
         }
+        if os.getenv("DEV_MODE") != "1":
+            try:
+                from db.queries import track_event as _te
+                _cr = st.session_state["clustering_results"]
+                _te("clustering_run", page="My Clusters",
+                    session_id=st.session_state.get("uc_session_id", "fc_user"),
+                    visitor_id=st.session_state.get("visitor_id"),
+                    properties={"mode": "By category", "k": _cr["k"],
+                                "n_tracks": _cr["n_tracks"],
+                                "n_playlists": len(_cr["selected_playlists"])})
+            except Exception:
+                pass
         st.switch_page("pages/_Cluster_Results.py")
 
     elif _grouping_mode_submit == "🏷️ By specific genre":
@@ -1829,6 +1841,18 @@ if submitted:
             "df_unmatched_cat":   _df_unmatched_sgl,
             "total_playlists":    len(all_playlists),
         }
+        if os.getenv("DEV_MODE") != "1":
+            try:
+                from db.queries import track_event as _te
+                _cr = st.session_state["clustering_results"]
+                _te("clustering_run", page="My Clusters",
+                    session_id=st.session_state.get("uc_session_id", "fc_user"),
+                    visitor_id=st.session_state.get("visitor_id"),
+                    properties={"mode": "By specific genre", "k": _cr["k"],
+                                "n_tracks": _cr["n_tracks"],
+                                "n_playlists": len(_cr["selected_playlists"])})
+            except Exception:
+                pass
         st.switch_page("pages/_Cluster_Results.py")
 
     else:
@@ -1936,5 +1960,17 @@ if submitted:
             "total_playlists":   len(all_playlists),
             "df_unmatched_cat":  _unmatched_pre,
         }
+        if os.getenv("DEV_MODE") != "1":
+            try:
+                from db.queries import track_event as _te
+                _cr = st.session_state["clustering_results"]
+                _te("clustering_run", page="My Clusters",
+                    session_id=st.session_state.get("uc_session_id", "fc_user"),
+                    visitor_id=st.session_state.get("visitor_id"),
+                    properties={"mode": "KMeans", "k": _cr["k"],
+                                "n_tracks": _cr["n_tracks"],
+                                "n_playlists": len(_cr["selected_playlists"])})
+            except Exception:
+                pass
         st.switch_page("pages/_Cluster_Results.py")
 

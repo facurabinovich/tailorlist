@@ -1,4 +1,5 @@
 import re as _re
+import uuid as _uuid
 import streamlit as st
 
 import base64 as _base64
@@ -219,17 +220,23 @@ def inject_sidebar_nav(page: str = "Home"):
     if _sid and st.query_params.get("sid", "") != _sid:
         st.query_params["sid"] = _sid
 
+    # ── Visitor ID — generated once per browser session, persists in session_state ──
+    if not st.session_state.get("visitor_id"):
+        st.session_state["visitor_id"] = str(_uuid.uuid4())
+
     # ── Analytics tracking ────────────────────────────────────────────────────────
     if os.getenv("DEV_MODE") != "1":
         try:
             from db.queries import track_event
-            _session = st.session_state.get("uc_session_id", "fc_user")
-            _track_key = f"_tracked_{page}_{_session}"
+            _session    = st.session_state.get("uc_session_id", "fc_user")
+            _visitor_id = st.session_state.get("visitor_id")
+            _track_key  = f"_tracked_{page}_{_visitor_id}"
             if not st.session_state.get(_track_key):
                 track_event(
                     event      = "page_view",
                     page       = page,
                     session_id = _session,
+                    visitor_id = _visitor_id,
                 )
                 st.session_state[_track_key] = True
         except Exception:

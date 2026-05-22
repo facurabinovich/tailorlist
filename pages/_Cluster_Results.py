@@ -1011,6 +1011,17 @@ for rank, row in cluster_sorted.iterrows():
                             ):
                                 with st.spinner("Saving…"):
                                     save_cluster_progress_bulk(user_key, list(cluster_track_ids), status="done")
+                                if os.getenv("DEV_MODE") != "1":
+                                    try:
+                                        from db.queries import track_event as _te_exp
+                                        _te_exp("export_click", page="Cluster Results",
+                                                session_id=user_key,
+                                                visitor_id=st.session_state.get("visitor_id"),
+                                                properties={"cluster_name": row["cluster_name"],
+                                                            "n_tracks": int(row["count"]),
+                                                            "mode": grouping_mode})
+                                    except Exception:
+                                        pass
                                 st.session_state["done_tracks"].update(cluster_track_ids)
                                 st.session_state.pop(_confirm_key, None)
                                 st.rerun()
@@ -1029,6 +1040,17 @@ for rank, row in cluster_sorted.iterrows():
                             else:
                                 with st.spinner("Saving…"):
                                     save_cluster_progress_bulk(user_key, list(cluster_track_ids), status="done")
+                                if os.getenv("DEV_MODE") != "1":
+                                    try:
+                                        from db.queries import track_event as _te_exp
+                                        _te_exp("export_click", page="Cluster Results",
+                                                session_id=user_key,
+                                                visitor_id=st.session_state.get("visitor_id"),
+                                                properties={"cluster_name": row["cluster_name"],
+                                                            "n_tracks": int(row["count"]),
+                                                            "mode": grouping_mode})
+                                    except Exception:
+                                        pass
                                 st.session_state["done_tracks"].update(cluster_track_ids)
                             st.rerun()
 

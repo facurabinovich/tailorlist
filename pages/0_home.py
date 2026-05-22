@@ -34,7 +34,7 @@ if (_sid
         and not st.session_state.get("uc_active")
         and not st.session_state.get("_dev_loaded")
         and not st.session_state.get("_adding_playlist")):
-    from db.queries import load_uc_session
+    from db.queries import load_uc_session, touch_uc_session
     _session = load_uc_session(_sid)
     if _session:
         st.session_state["uc_enriched"]         = _session["enriched"]
@@ -45,6 +45,7 @@ if (_sid
         st.session_state["uc_enrichment_state"] = "idle"
         st.session_state["uc_session_id"]       = _sid
         st.session_state["mode"]                = "🔗 Your Collection"
+        touch_uc_session(_sid)
     else:
         st.session_state["_session_expired"] = True
         st.query_params.pop("sid", None)
@@ -79,6 +80,24 @@ if _mode_param and not st.session_state.get("mode"):
         st.session_state["mode"] = "🎵 Demo Collection"
 
 inject_sidebar_nav("Home")
+
+# ── site_visit event — once per session ───────────────────────────────────────
+if os.getenv("DEV_MODE") != "1":
+    _vid = st.session_state.get("visitor_id")
+    if _vid and not st.session_state.get(f"_tracked_site_visit_{_vid}"):
+        try:
+            from db.queries import track_event as _track_event
+            _mode_param = st.query_params.get("mode", "")
+            _track_event(
+                event      = "site_visit",
+                page       = "Home",
+                session_id = st.session_state.get("uc_session_id", "fc_user"),
+                visitor_id = _vid,
+                properties = {"referrer": _mode_param} if _mode_param else None,
+            )
+        except Exception:
+            pass
+        st.session_state[f"_tracked_site_visit_{_vid}"] = True
 
 # ===========================================================================
 # YOUR COLLECTION MODE
