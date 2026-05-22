@@ -314,21 +314,29 @@ if r.get("selected_decades") and len(r["selected_decades"]) < len(r.get("decade_
     _filter_summary.append(f"{len(r['selected_decades'])} decades")
 _filter_str = " · ".join(_filter_summary) if _filter_summary else "all tracks"
 
-# Compute unmatched count for KMeans header — reads from pre-built filtered DF
+# Compute unmatched count for header — reads from pre-built filtered DF
 # (same playlist/decade/family filters already applied at submission time)
 _n_unmatched_hdr = 0
-if not _is_category_mode and not _is_sgl_mode:
-    _um_hdr = df_unmatched_cat.copy() if not df_unmatched_cat.empty else pd.DataFrame()
-    if not _um_hdr.empty:
-        _done_hdr = st.session_state.get("done_tracks", set())
-        if _done_hdr:
-            _um_hdr = _um_hdr[~_um_hdr["track_id"].isin(_done_hdr)]
-        _n_unmatched_hdr = len(_um_hdr)
+_um_hdr = df_unmatched_cat.copy() if not df_unmatched_cat.empty else pd.DataFrame()
+if not _um_hdr.empty:
+    _done_hdr = st.session_state.get("done_tracks", set())
+    if _done_hdr:
+        _um_hdr = _um_hdr[~_um_hdr["track_id"].isin(_done_hdr)]
+    _n_unmatched_hdr = _um_hdr["track_id"].nunique()
 
-if not _is_category_mode and not _is_sgl_mode and _n_unmatched_hdr > 0:
+if _n_unmatched_hdr > 0:
+    if _is_sgl_mode:
+        _matched_label   = f"{n_tracks:,} matched"
+        _unmatched_label = f"{_n_unmatched_hdr:,} with no genre match"
+    elif _is_category_mode:
+        _matched_label   = f"{n_tracks:,} grouped"
+        _unmatched_label = f"{_n_unmatched_hdr:,} unmatched"
+    else:
+        _matched_label   = f"{n_tracks:,} with audio features"
+        _unmatched_label = f"{_n_unmatched_hdr:,} without"
     _tracks_label = (
-        f"{n_tracks:,} with audio features · "
-        f"<span style='color:#F5A623;'>{_n_unmatched_hdr:,} without</span> "
+        f"{_matched_label} · "
+        f"<span style='color:#F5A623;'>{_unmatched_label}</span> "
         f"<span style='color:#888;font-size:0.82rem;'>(assign manually below)</span>"
         f" · {k} clusters"
     )
