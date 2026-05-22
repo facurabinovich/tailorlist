@@ -33,7 +33,7 @@ with col1:
         Found something broken? Have an idea for a new feature?
         I'd love to hear from you.
       </p>
-      <a href="https://mail.google.com/mail/?view=cm&to=curetteapp@gmail.com&su=Spotify%20Analytics%20%E2%80%94%20Feedback"
+      <a href="https://mail.google.com/mail/?view=cm&to=tailorlistapp@gmail.com&su=TailorList%20%E2%80%94%20Feedback"
          target="_blank"
          style="display:inline-block;background:#1DB954;color:#000;font-weight:700;
                 font-size:0.88rem;padding:10px 20px;border-radius:20px;
