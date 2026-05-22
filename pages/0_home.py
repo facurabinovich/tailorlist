@@ -70,6 +70,14 @@ if (os.getenv("DEV_MODE") == "1"
         st.session_state["mode"]                = "🔗 Your Collection"
         st.session_state["_dev_loaded"]         = True
 
+# ── Landing-page deep-link: ?mode=uc → Your Collection, ?mode=demo → Demo ────
+_mode_param = st.query_params.get("mode", "")
+if _mode_param and not st.session_state.get("mode"):
+    if _mode_param == "uc":
+        st.session_state["mode"] = "🔗 Your Collection"
+    elif _mode_param == "demo":
+        st.session_state["mode"] = "🎵 Demo Collection"
+
 inject_sidebar_nav("Home")
 
 # ===========================================================================
