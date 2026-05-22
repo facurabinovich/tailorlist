@@ -53,7 +53,7 @@ with col1:
       <p style="color:#B3B3B3;font-size:0.88rem;line-height:1.6;margin:0 0 16px 0;">
         The full project is open source. Star it, fork it, or open an issue.
       </p>
-      <a href="https://github.com/facurabinovich/spotify-streamlit"
+      <a href="https://github.com/facurabinovich/tailorlist"
          target="_blank"
          style="display:inline-block;background:#282828;color:#FFF;font-weight:700;
                 font-size:0.88rem;padding:10px 20px;border-radius:20px;
