@@ -25,11 +25,11 @@ if st.session_state.get("_pending_sid"):
 # ── YC session restore ────────────────────────────────────────────────────────
 # Check session state first (survives page navigation within same session)
 # Fall back to URL sid (survives full browser refresh)
-from utils import _UUID_RE as _SID_RE
-_raw_sid = st.query_params.get("sid", "")
-if _raw_sid and not _SID_RE.match(_raw_sid):
-    _raw_sid = ""
-_sid = st.session_state.get("uc_session_id") or _raw_sid
+# resolve_sid(): session_state → ?sid= → cookie, malformed values rejected.
+# The cookie fallback is what makes a bookmarked or typed URL recover a
+# collection — the component iframe cannot put a stored sid back in the URL.
+from utils import resolve_sid, forget_uc_session, mark_uc_session_unavailable
+_sid = resolve_sid()
 
 if (_sid
         and not st.session_state.get("uc_active")
@@ -51,6 +51,10 @@ if (_sid
     else:
         st.session_state["_session_expired"] = True
         st.query_params.pop("sid", None)
+        # Stop retrying this session. The cookie is deliberately left alone:
+        # load_uc_session() also returns None when the DB is unreachable, and
+        # deleting it then would lose the collection for good.
+        mark_uc_session_unavailable()
 
 # ── DEV MODE — must run before inject_sidebar_nav() ─────────────────────────
 from dotenv import load_dotenv
@@ -144,11 +148,15 @@ if st.session_state.get("mode") == "🔗 Your Collection":
         for k in _RESET_KEYS:
             st.session_state.pop(k, None)
         st.query_params.clear()
+        # Stop the sid cookie from pulling this visitor back into the
+        # collection they just reset (inject_sidebar_nav deletes it)
+        forget_uc_session()
         # Clear localStorage sid
         import streamlit.components.v1 as _components
         _components.html("""
 <script>
 localStorage.removeItem('tailorlist_sid');
+document.cookie = 'tailorlist_sid=;path=/;max-age=0';
 </script>
 """, height=0)
 
@@ -362,8 +370,10 @@ localStorage.removeItem('tailorlist_sid');
                         st.query_params.clear()
                         for k in ("uc_enriched", "uc_failed", "uc_skipped",
                                   "uc_active", "uc_enrichment_state",
-                                  "uc_enrichment_cursor", "uc_all_tracks", "mode"):
+                                  "uc_enrichment_cursor", "uc_all_tracks", "mode",
+                                  "uc_session_id"):
                             st.session_state.pop(k, None)
+                        forget_uc_session()   # don't restore it from the cookie
                     else:
                         st.session_state["uc_active"] = False
                         st.session_state["uc_enrichment_state"] = "idle"
@@ -720,8 +730,10 @@ localStorage.removeItem('tailorlist_sid');
                             st.query_params.clear()
                             for k in ("uc_enriched", "uc_failed", "uc_skipped",
                                       "uc_active", "uc_enrichment_state",
-                                      "uc_enrichment_cursor", "uc_all_tracks", "mode"):
+                                      "uc_enrichment_cursor", "uc_all_tracks", "mode",
+                                      "uc_session_id"):
                                 st.session_state.pop(k, None)
+                            forget_uc_session()   # don't restore it from the cookie
                         st.rerun()
                     st.markdown("</div>", unsafe_allow_html=True)
 

@@ -8,6 +8,68 @@ _UUID_RE = _re.compile(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     _re.IGNORECASE,
 )
+
+# YC sessions expire server-side 7 days after creation (see load_uc_session)
+_SID_COOKIE_MAX_AGE = 7 * 24 * 60 * 60
+
+
+def read_cookie(name: str) -> str:
+    """Read a cookie, tolerating Streamlit versions without st.context."""
+    import streamlit as st
+    try:
+        return st.context.cookies.get(name) or ""
+    except Exception:
+        return ""
+
+
+def resolve_sid() -> str:
+    """The YC session id for this visitor: session_state → ?sid= → cookie.
+
+    The cookie is what lets a bookmarked or typed URL recover a collection.
+    Component iframes are sandboxed without allow-top-navigation, so JS in
+    there cannot put a stored sid back into the URL — it hands it to Python
+    through a cookie instead, and the caller writes it back to the URL.
+
+    Returns "" when there is no sid, the value is malformed, the visitor
+    dropped their collection (_sid_forgotten), or a lookup for it already
+    failed this session (_sid_unavailable).
+    """
+    import streamlit as st
+    candidates = [
+        st.session_state.get("uc_session_id", ""),
+        st.query_params.get("sid", ""),
+    ]
+    if not (st.session_state.get("_sid_forgotten")
+            or st.session_state.get("_sid_unavailable")):
+        candidates.append(read_cookie("tailorlist_sid"))
+    for candidate in candidates:
+        if candidate and _UUID_RE.match(candidate):
+            return candidate
+    return ""
+
+
+def forget_uc_session():
+    """Mark the YC session as intentionally dropped by the visitor.
+
+    Stops resolve_sid() from recovering it from the cookie and makes the next
+    inject_sidebar_nav() delete that cookie — otherwise a visitor who reset
+    their collection would be pulled straight back into it on their next visit.
+    Only for deliberate actions (reset, removing the last playlist).
+    """
+    import streamlit as st
+    st.session_state["_sid_forgotten"] = True
+
+
+def mark_uc_session_unavailable():
+    """A lookup for this sid came back empty — stop retrying it this session.
+
+    Deliberately does NOT delete the cookie: load_uc_session() returns None
+    both for a genuinely expired session and for a database it could not reach,
+    and destroying the visitor's only pointer to their collection over a
+    transient outage would be unrecoverable. The cookie ages out on its own.
+    """
+    import streamlit as st
+    st.session_state["_sid_unavailable"] = True
 with open("assets/spotify-logo-icon/Primary_Logo_Green_RGB.svg", "rb") as _f:
     _SPOTIFY_ICON_B64 = _base64.b64encode(_f.read()).decode()
 
@@ -177,41 +239,48 @@ def inject_sidebar_nav(page: str = "Home"):
         _vid = _cookie_vid if _UUID_RE.match(_cookie_vid) else str(_uuid.uuid4())
         st.session_state["visitor_id"] = _vid
 
-    # ── sid persistence + visitor-id cookie ──────────────────────────────────
+    # ── sid + visitor-id cookies ─────────────────────────────────────────────
+    # The sid cookie mirrors Python's view of the session: write it while there
+    # is one, delete it once the visitor drops it. Any sid still sitting in
+    # localStorage came from the old redirect-based scheme that the iframe
+    # sandbox blocked, so migrate it across the first time we see it.
+    _sid_state = st.session_state.get("uc_session_id", "")
+    if _sid_state and _UUID_RE.match(_sid_state):
+        # A live session supersedes an earlier "forgotten" marker, so starting a
+        # fresh enrichment re-establishes the cookie instead of staying deleted
+        st.session_state.pop("_sid_forgotten", None)
+    _sid_now = resolve_sid()
+    if st.session_state.get("_sid_forgotten"):
+        # Only a deliberate drop deletes the cookie — see forget_uc_session()
+        _sid_js = "document.cookie = 'tailorlist_sid=;path=/;max-age=0';"
+    elif _sid_now:
+        _sid_js = (
+            f"document.cookie = 'tailorlist_sid={_sid_now}'"
+            f" + ';path=/;max-age={_SID_COOKIE_MAX_AGE};SameSite=Lax';"
+        )
+    else:
+        _sid_js = (
+            "const legacySid = localStorage.getItem('tailorlist_sid');\n"
+            "        if (legacySid && UUID_RE.test(legacySid)) {\n"
+            "            document.cookie = 'tailorlist_sid=' + legacySid"
+            f" + ';path=/;max-age={_SID_COOKIE_MAX_AGE};SameSite=Lax';\n"
+            "        }"
+        )
+
     import streamlit.components.v1 as _components
     _components.html(f"""
 <script>
 (function() {{
     // We're inside an iframe — need to work with parent window
     try {{
-        const parentParams = new URLSearchParams(window.parent.location.search);
-        const sidFromUrl = parentParams.get('sid');
+        const UUID_RE = /^[0-9a-f]{{8}}-[0-9a-f]{{4}}-4[0-9a-f]{{3}}-[89ab][0-9a-f]{{3}}-[0-9a-f]{{12}}$/i;
 
-        if (sidFromUrl) {{
-            // sid is in parent URL — save to localStorage
-            localStorage.setItem('tailorlist_sid', sidFromUrl);
-        }} else {{
-            // No sid in parent URL — check localStorage
-            const savedSid = localStorage.getItem('tailorlist_sid');
-            if (savedSid) {{
-                // NOTE: this redirect is blocked by the component iframe's
-                // sandbox (no allow-top-navigation), so sid recovery from a
-                // bookmarked/typed URL does not actually work. Kept as-is;
-                // the fix is to hand the sid back through a cookie the way
-                // tailorlist_vid does below.
-                const separator = window.parent.location.search ? '&' : '?';
-                window.parent.location.replace(
-                    window.parent.location.pathname +
-                    window.parent.location.search +
-                    separator + 'sid=' + savedSid
-                );
-            }}
-        }}
+        // ── sid — YC session, so a bookmarked URL can recover the collection
+        {_sid_js}
 
         // ── vid — analytics visitor id, in a 1-year first-party cookie.
         // Written only when missing or malformed, so the id stays sticky and
         // Python (st.context.cookies) always sees a value it will accept.
-        const UUID_RE = /^[0-9a-f]{{8}}-[0-9a-f]{{4}}-4[0-9a-f]{{3}}-[89ab][0-9a-f]{{3}}-[0-9a-f]{{12}}$/i;
         const match = document.cookie.match(/(?:^|;\\s*)tailorlist_vid=([^;]*)/);
         const cookieVid = match ? decodeURIComponent(match[1]) : '';
         if (!UUID_RE.test(cookieVid)) {{
@@ -227,9 +296,9 @@ def inject_sidebar_nav(page: str = "Home"):
 """, height=0)
 
     # ── Session restore on any page refresh ──────────────────────────────────
-    _sid = st.query_params.get("sid", "")
-    if _sid and not _UUID_RE.match(_sid):
-        _sid = ""  # reject non-UUID values before any DB lookup
+    # resolve_sid() already rejects malformed values before any DB lookup, and
+    # falls back to the cookie so a bookmarked URL still finds the collection.
+    _sid = resolve_sid()
     if (_sid
             and not st.session_state.get("uc_active")
             and not st.session_state.get("_dev_loaded")
@@ -246,6 +315,11 @@ def inject_sidebar_nav(page: str = "Home"):
                 st.session_state["uc_enrichment_state"] = "idle"
                 st.session_state["uc_session_id"]       = _sid
                 st.session_state["mode"]                = "🔗 Your Collection"
+            else:
+                # Expired, or the DB was unreachable — stop retrying this run,
+                # but keep the cookie so a transient outage isn't permanent
+                mark_uc_session_unavailable()
+                st.query_params.pop("sid", None)
         except Exception:
             pass
 
