@@ -1,5 +1,6 @@
 # Core app
-streamlit>=1.35.0
+# >=1.37 required: analytics reads the visitor-id cookie via st.context.cookies
+streamlit>=1.37.0
 spotipy==2.24.0
 pandas==2.2.3
 numpy==2.0.0

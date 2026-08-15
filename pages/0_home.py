@@ -1,6 +1,7 @@
 import html
 import logging
 import math
+import os
 import requests
 import pandas as pd
 import streamlit as st
@@ -54,7 +55,7 @@ if (_sid
 # ── DEV MODE — must run before inject_sidebar_nav() ─────────────────────────
 from dotenv import load_dotenv
 load_dotenv()
-import json, os
+import json
 if (os.getenv("DEV_MODE") == "1"
         and not st.session_state.get("uc_active")
         and not st.session_state.get("_dev_loaded")

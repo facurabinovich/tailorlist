@@ -158,37 +158,71 @@ def inject_sidebar_nav(page: str = "Home"):
     import streamlit as st
     import os
 
-    # ── localStorage sid persistence ─────────────────────────────────────────
+    # ── Visitor ID ───────────────────────────────────────────────────────────
+    # Stable across browser sessions via a first-party cookie, so analytics can
+    # tell a returning visitor from a new one. The cookie is written by the JS
+    # below and read back here on the next page load.
+    # Why a cookie and not localStorage: Streamlit renders components in an
+    # iframe sandboxed WITHOUT allow-top-navigation, so JS in there cannot
+    # redirect the top window to hand a stored value back to Python. It does
+    # have allow-same-origin, so a cookie set there is sent with the next
+    # request and shows up in st.context.cookies.
+    _vid = st.session_state.get("visitor_id")
+    if not _vid:
+        _cookie_vid = ""
+        try:
+            _cookie_vid = st.context.cookies.get("tailorlist_vid") or ""
+        except Exception:
+            pass    # older Streamlit without st.context — degrade to per-session
+        _vid = _cookie_vid if _UUID_RE.match(_cookie_vid) else str(_uuid.uuid4())
+        st.session_state["visitor_id"] = _vid
+
+    # ── sid persistence + visitor-id cookie ──────────────────────────────────
     import streamlit.components.v1 as _components
-    _components.html("""
+    _components.html(f"""
 <script>
-(function() {
+(function() {{
     // We're inside an iframe — need to work with parent window
-    try {
+    try {{
         const parentParams = new URLSearchParams(window.parent.location.search);
         const sidFromUrl = parentParams.get('sid');
 
-        if (sidFromUrl) {
+        if (sidFromUrl) {{
             // sid is in parent URL — save to localStorage
             localStorage.setItem('tailorlist_sid', sidFromUrl);
-        } else {
+        }} else {{
             // No sid in parent URL — check localStorage
             const savedSid = localStorage.getItem('tailorlist_sid');
-            if (savedSid) {
-                // Redirect parent to URL with sid restored
+            if (savedSid) {{
+                // NOTE: this redirect is blocked by the component iframe's
+                // sandbox (no allow-top-navigation), so sid recovery from a
+                // bookmarked/typed URL does not actually work. Kept as-is;
+                // the fix is to hand the sid back through a cookie the way
+                // tailorlist_vid does below.
                 const separator = window.parent.location.search ? '&' : '?';
                 window.parent.location.replace(
                     window.parent.location.pathname +
                     window.parent.location.search +
                     separator + 'sid=' + savedSid
                 );
-            }
-        }
-    } catch(e) {
+            }}
+        }}
+
+        // ── vid — analytics visitor id, in a 1-year first-party cookie.
+        // Written only when missing or malformed, so the id stays sticky and
+        // Python (st.context.cookies) always sees a value it will accept.
+        const UUID_RE = /^[0-9a-f]{{8}}-[0-9a-f]{{4}}-4[0-9a-f]{{3}}-[89ab][0-9a-f]{{3}}-[0-9a-f]{{12}}$/i;
+        const match = document.cookie.match(/(?:^|;\\s*)tailorlist_vid=([^;]*)/);
+        const cookieVid = match ? decodeURIComponent(match[1]) : '';
+        if (!UUID_RE.test(cookieVid)) {{
+            document.cookie = 'tailorlist_vid={_vid}'
+                            + ';path=/;max-age=31536000;SameSite=Lax';
+        }}
+    }} catch(e) {{
         // Cross-origin or other error — silently fail
-        console.warn('tailorlist sid restore failed:', e);
-    }
-})();
+        console.warn('tailorlist state restore failed:', e);
+    }}
+}})();
 </script>
 """, height=0)
 
@@ -219,10 +253,6 @@ def inject_sidebar_nav(page: str = "Home"):
     _sid = st.session_state.get("uc_session_id", "")
     if _sid and st.query_params.get("sid", "") != _sid:
         st.query_params["sid"] = _sid
-
-    # ── Visitor ID — generated once per browser session, persists in session_state ──
-    if not st.session_state.get("visitor_id"):
-        st.session_state["visitor_id"] = str(_uuid.uuid4())
 
     # ── Analytics tracking ────────────────────────────────────────────────────────
     if os.getenv("DEV_MODE") != "1":

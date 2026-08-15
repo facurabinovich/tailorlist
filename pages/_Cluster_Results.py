@@ -245,6 +245,23 @@ user_key = (
     else "facu"
 )
 
+
+def _track(event: str, **props):
+    """Fire-and-forget analytics event — never breaks the page."""
+    if os.getenv("DEV_MODE") == "1":
+        return
+    try:
+        from db.queries import track_event
+        track_event(
+            event      = event,
+            page       = "Cluster Results",
+            session_id = user_key,
+            visitor_id = st.session_state.get("visitor_id"),
+            properties = props or None,
+        )
+    except Exception:
+        pass
+
 # ── Restore progress ──────────────────────────────────────────────────────────
 try:
     _progress = load_cluster_progress(user_key)
@@ -920,13 +937,18 @@ for rank, row in cluster_sorted.iterrows():
         with st.expander(f"View {int(row['count'])} tracks · Export to Spotify →"):
             st.dataframe(subset, use_container_width=True, hide_index=True)
             _csv = subset.to_csv(index=False).encode("utf-8")
-            st.download_button(
+            if st.download_button(
                 label="⬇️ Download CSV",
                 data=_csv,
                 file_name=f"cluster_{rank+1}_{_slug}.csv",
                 mime="text/csv",
                 key=f"dl_cluster_{i}",
-            )
+            ):
+                _track("export_download",
+                       kind="cluster",
+                       cluster_name=row["cluster_name"],
+                       n_tracks=int(row["count"]),
+                       mode=grouping_mode)
     
             # ── Export flow ───────────────────────────────────────────────────────
             if _dev_mode and _sp_oauth:
@@ -951,6 +973,13 @@ for rank, row in cluster_sorted.iterrows():
                     cluster_tracks,
                     f"Cluster {rank + 1} — {row['cluster_name']}",
                     key_prefix=f"cluster_{i}",
+                    on_export=lambda n_tracks, _cn=row["cluster_name"]: _track(
+                        "export_download",
+                        kind="spotlistr_csv",
+                        cluster_name=_cn,
+                        n_tracks=n_tracks,
+                        mode=grouping_mode,
+                    ),
                 )
 
                 # Check if already marked done
@@ -1012,16 +1041,10 @@ for rank, row in cluster_sorted.iterrows():
                                 if os.getenv("DEV_MODE") != "1":
                                     with st.spinner("Saving…"):
                                         save_cluster_progress_bulk(user_key, list(cluster_track_ids), status="done")
-                                    try:
-                                        from db.queries import track_event as _te_exp
-                                        _te_exp("export_click", page="Cluster Results",
-                                                session_id=user_key,
-                                                visitor_id=st.session_state.get("visitor_id"),
-                                                properties={"cluster_name": row["cluster_name"],
-                                                            "n_tracks": int(row["count"]),
-                                                            "mode": grouping_mode})
-                                    except Exception:
-                                        pass
+                                    _track("mark_done_click",
+                                           cluster_name=row["cluster_name"],
+                                           n_tracks=int(row["count"]),
+                                           mode=grouping_mode)
                                 st.session_state["done_tracks"].update(cluster_track_ids)
                                 st.session_state.pop(_confirm_key, None)
                                 st.rerun()
@@ -1041,16 +1064,10 @@ for rank, row in cluster_sorted.iterrows():
                                 if os.getenv("DEV_MODE") != "1":
                                     with st.spinner("Saving…"):
                                         save_cluster_progress_bulk(user_key, list(cluster_track_ids), status="done")
-                                    try:
-                                        from db.queries import track_event as _te_exp
-                                        _te_exp("export_click", page="Cluster Results",
-                                                session_id=user_key,
-                                                visitor_id=st.session_state.get("visitor_id"),
-                                                properties={"cluster_name": row["cluster_name"],
-                                                            "n_tracks": int(row["count"]),
-                                                            "mode": grouping_mode})
-                                    except Exception:
-                                        pass
+                                    _track("mark_done_click",
+                                           cluster_name=row["cluster_name"],
+                                           n_tracks=int(row["count"]),
+                                           mode=grouping_mode)
                                 st.session_state["done_tracks"].update(cluster_track_ids)
                             st.rerun()
 
@@ -1086,13 +1103,17 @@ def _render_unmatched_section():
         "playlist_name": "Playlist",
     }).to_csv(index=False).encode("utf-8")
 
-    st.download_button(
+    if st.download_button(
         label="⬇️ Download unmatched tracks list",
         data=_unmatched_csv,
         file_name="unmatched_tracks.csv",
         mime="text/csv",
         key="dl_unmatched",
-    )
+    ):
+        _track("export_download",
+               kind="unmatched",
+               n_tracks=len(df_unmatched),
+               mode=grouping_mode)
 
     hr(top=12, bottom=12)
 

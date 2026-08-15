@@ -220,7 +220,11 @@ def render_export_to_spotify(
     tracks: list[dict],
     playlist_name: str,
     key_prefix: str = "export",
+    on_export=None,
 ) -> None:
+    """on_export, if given, is called with n_tracks=<int> when the visitor
+    downloads the CSV — lets the caller log analytics without this module
+    knowing anything about them."""
     import streamlit as st
     import streamlit.components.v1 as components
     import pandas as pd
@@ -344,14 +348,15 @@ def render_export_to_spotify(
     # Other export options
     with st.expander("Other export options", expanded=False):
         df = pd.DataFrame(tracks)
-        st.download_button(
+        if st.download_button(
             "📥 Download as CSV",
             df.to_csv(index=False),
             f"{playlist_name}.csv",
             "text/csv",
             use_container_width=True,
             key=f"{key_prefix}_csv_dl",
-        )
+        ) and on_export:
+            on_export(n_tracks=len(tracks))
         url_string = "\n".join(
             f"https://open.spotify.com/track/{t['id']}" for t in tracks
         )
