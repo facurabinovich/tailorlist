@@ -97,82 +97,12 @@ _DYN_PALETTE = [
 # Features to use in the radar — exclude tempo (BPM scale distorts radar)
 _RADAR_FEATURES = [f for f in CLUSTER_FEATURES if f != "tempo"]
 
-GENRE_FAMILIES = {
-    # Checked in order — first matching family wins.
-    # Keywords are matched as substrings of the full genre string (case-insensitive).
-    "Rock":       ["rock", "punk", "metal", "grunge", "hardcore", "emo", "shoegaze"],
-    "Pop":        ["pop"],  # "pop" alone covers baroque pop, indie pop, synth-pop, afropop, etc.
-    "Hip-Hop":    ["hip hop", "rap", "trap", "drill", "r&b", "soul", "grime"],
-    "Electronic": ["electronic", "edm", "house", "techno", "trance", "ambient", "synthwave",
-                   "disco", "new wave", "dubstep", "drum and bass", "electro", "downtempo",
-                   "chillwave", "darkwave", "cold wave", "eurodance", "italo"],
-    "Jazz":       ["jazz", "bebop", "swing", "blues", "big band", "boogie"],
-    "Classical":  ["classical", "opera", "orchestra", "chamber"],
-    "Folk":       ["folk", "acoustic", "singer-songwriter", "country", "americana", "bluegrass",
-                   "newgrass", "honky tonk"],
-    "Latin":      ["latin", "reggaeton", "salsa", "cumbia", "bossa nova", "bachata", "tango",
-                   "bolero", "merengue", "mariachi", "ranchera", "mpb", "trova", "soca",
-                   "calypso", "folklore", "folclor", "candombe", "murga", "villancico"],
-    "Reggae":     ["reggae", "dancehall", "ska", "ragga", "riddim", "dub"],
-}
-
-def _assign_family(genre_str: str) -> list[str]:
-    """Map a raw genre string to one or more family labels. Unmatched → Other."""
-    if not genre_str or pd.isna(genre_str) or str(genre_str).strip() == "":
-        return ["Other"]
-    genres_lower = genre_str.lower()
-    matched = [
-        family for family, keywords in GENRE_FAMILIES.items()
-        if any(kw in genres_lower for kw in keywords)
-    ]
-    return matched if matched else ["Other"]
-
-
-def _track_matches_families(genre_str: str, selected_fams: list) -> bool:
-    """
-    Returns True if ANY of the track's raw genre tags match ANY selected family's keywords.
-    Tracks with NO genre data always pass — they don't belong to any family so the
-    family filter cannot exclude them (they surface in the unmatched section instead).
-    """
-    if not genre_str or pd.isna(genre_str) or str(genre_str).strip() == "":
-        return True  # genre-less tracks are never filtered out by family selection
-    genres_lower = genre_str.lower()
-    for fam in selected_fams:
-        if fam == "Other":
-            continue
-        keywords = GENRE_FAMILIES.get(fam, [])
-        if any(kw in genres_lower for kw in keywords):
-            return True
-    # No family matched — check if Other is selected (catches unrecognized genres)
-    all_known_keywords = [kw for kws in GENRE_FAMILIES.values() for kw in kws]
-    is_unrecognized = not any(kw in genres_lower for kw in all_known_keywords)
-    if is_unrecognized and "Other" in selected_fams:
-        return True
-    return False
-
-
-def _preview_filter(
-    df: pd.DataFrame,
-    playlists: list,
-    decades: list,
-    families: list,
-    raw_genres: list,
-    all_families_available: list | None = None,
-) -> int:
-    """Return track count after applying all filters. Zero-cost preview."""
-    out = df[df["playlist_name"].isin(playlists)].copy() if playlists else df.copy()
-    if decades and "decade" in out.columns:
-        out = out[out["decade"].astype("Int64").astype(str).isin(decades)]
-    if "artist_genres" in out.columns:
-        if raw_genres:
-            out = out[out["artist_genres"].apply(
-                lambda g: any(rg in (g or "") for rg in raw_genres)
-            )]
-        elif all_families_available is not None and set(families) != set(all_families_available):
-            out = out[out["artist_genres"].apply(
-                lambda g: _track_matches_families(g, families)
-            )]
-    return len(out)
+from core.genres import (
+    GENRE_FAMILIES,
+    assign_family as _assign_family,
+    track_matches_families as _track_matches_families,
+    preview_filter as _preview_filter,
+)
 
 _BASE_LAYOUT = dict(
     plot_bgcolor="#121212",

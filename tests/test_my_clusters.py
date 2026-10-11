@@ -14,71 +14,17 @@ pytestmark = pytest.mark.filterwarnings("ignore::UserWarning:sklearn")
 
 CLUSTER_FEATURES = ["energy", "acousticness", "valence", "tempo", "danceability", "speechiness_log"]
 
-GENRE_FAMILIES = {
-    "Rock":       ["rock", "punk", "metal", "grunge", "hardcore", "emo", "shoegaze"],
-    "Pop":        ["pop"],
-    "Hip-Hop":    ["hip hop", "rap", "trap", "drill", "r&b", "soul", "grime"],
-    "Electronic": ["electronic", "edm", "house", "techno", "trance", "ambient", "synthwave",
-                   "disco", "new wave", "dubstep", "drum and bass", "electro", "downtempo",
-                   "chillwave", "darkwave", "cold wave", "eurodance", "italo"],
-    "Jazz":       ["jazz", "bebop", "swing", "blues", "big band", "boogie"],
-    "Classical":  ["classical", "opera", "orchestra", "chamber"],
-    "Folk":       ["folk", "acoustic", "singer-songwriter", "country", "americana", "bluegrass",
-                   "newgrass", "honky tonk"],
-    "Latin":      ["latin", "reggaeton", "salsa", "cumbia", "bossa nova", "bachata", "tango",
-                   "bolero", "merengue", "mariachi", "ranchera", "mpb", "trova", "soca",
-                   "calypso", "folklore", "folclor", "candombe", "murga", "villancico"],
-    "Reggae":     ["reggae", "dancehall", "ska", "ragga", "riddim", "dub"],
-}
+from core.genres import (
+    GENRE_FAMILIES,
+    assign_family as _assign_family,
+    track_matches_families as _track_matches_families,
+    preview_filter as _preview_filter,
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers — mirror pure logic from 6_My_Clusters.py
 # ---------------------------------------------------------------------------
-
-def _assign_family(genre_str: str) -> list:
-    if not genre_str or pd.isna(genre_str) or str(genre_str).strip() == "":
-        return ["Other"]
-    genres_lower = genre_str.lower()
-    matched = [
-        family for family, keywords in GENRE_FAMILIES.items()
-        if any(kw in genres_lower for kw in keywords)
-    ]
-    return matched if matched else ["Other"]
-
-
-def _track_matches_families(genre_str: str, selected_fams: list) -> bool:
-    if not genre_str or pd.isna(genre_str) or str(genre_str).strip() == "":
-        return "Other" in selected_fams
-    genres_lower = genre_str.lower()
-    for fam in selected_fams:
-        if fam == "Other":
-            continue
-        keywords = GENRE_FAMILIES.get(fam, [])
-        if any(kw in genres_lower for kw in keywords):
-            return True
-    all_known_keywords = [kw for kws in GENRE_FAMILIES.values() for kw in kws]
-    is_unrecognized = not any(kw in genres_lower for kw in all_known_keywords)
-    if is_unrecognized and "Other" in selected_fams:
-        return True
-    return False
-
-
-def _preview_filter(df, playlists, decades, families, raw_genres, all_families_available=None):
-    out = df[df["playlist_name"].isin(playlists)].copy() if playlists else df.copy()
-    if decades and "decade" in out.columns:
-        out = out[out["decade"].astype("Int64").astype(str).isin(decades)]
-    if "artist_genres" in out.columns:
-        if raw_genres:
-            out = out[out["artist_genres"].apply(
-                lambda g: any(rg in (g or "") for rg in raw_genres)
-            )]
-        elif families and set(families) != set(all_families_available or []):
-            out = out[out["artist_genres"].apply(
-                lambda g: _track_matches_families(g, families)
-            )]
-    return len(out)
-
 
 def cluster_pct(count: int, total: int) -> float:
     return count / total * 100 if total else 0.0
@@ -235,7 +181,8 @@ class TestTrackMatchesFamilies:
         assert _track_matches_families(None, ["Other"]) is True
 
     def test_TC10_none_without_other(self):
-        assert _track_matches_families(None, ["Rock"]) is False
+        # Genre-less tracks always pass the family filter (deliberate 2026-05-20 change); the old mirror had diverged.
+        assert _track_matches_families(None, ["Rock"]) is True
 
     def test_TC11_empty_string_with_other(self):
         assert _track_matches_families("", ["Other"]) is True
@@ -281,7 +228,8 @@ class TestPreviewFilter:
         all_fams = ["Rock", "Pop", "Hip-Hop", "Electronic", "Jazz", "Classical", "Folk", "Latin", "Other"]
         # Rock matches t0 "rock alternative" and t4 "rock punk"
         count = _preview_filter(genre_df, ["PL1", "PL2"], [], ["Rock"], [], all_fams)
-        assert count == 2
+        # Genre-less tracks always pass the family filter (deliberate 2026-05-20 change); the old mirror had diverged.
+        assert count == 3
 
     def test_TC21_zero_result_when_no_match(self, genre_df):
         # "Classical" only — nothing in the genre_df has classical keywords

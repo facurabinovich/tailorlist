@@ -111,7 +111,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
 
 ## Fase 3: dominio de clusters
 
-- [ ] **T15: `core/genres.py` y test de arquitectura** · M
+- [x] **T15: `core/genres.py` y test de arquitectura** · M
   - Acceptance: `GENRE_FAMILIES`, `_assign_family`, `_track_matches_families` y `_preview_filter` en `core/genres.py`. `tests/test_my_clusters.py` borra sus copias espejo y las importa, con las mismas aserciones. Se agrega `tests/test_architecture.py`: `core/` no importa `streamlit` y no hay SQL en `pages/`.
   - Verify: suite.
   - Files: `core/genres.py`, `pages/6_My_Clusters.py`, `tests/test_my_clusters.py`, `tests/test_architecture.py`.

@@ -109,5 +109,14 @@ hacer la revisión final.
   grep). Además, `get_cluster_data()` hace `st.cache_data.clear()` en cada
   llamada FC: si una tool lo usara en loop, borraría todas las cachés. Propuesta:
   eliminarlas en T28, con aprobación de Facu (es código muerto, no funcionalidad).
+- **H9:** `core/export.spotlistr_lines` falla con `AttributeError` si un track
+  tiene `artists=None`, igual que el código original. Pendiente para la tool
+  `export_playlist` en F1: no debería romperse por un dato faltante.
+- **H10:** los tests espejo de My Clusters (`_track_matches_families` y
+  `_preview_filter`) se habían desviado del código de producción. Probaban el
+  comportamiento anterior al cambio deliberado del 2026-05-20 ("los tracks sin
+  género siempre pasan el filtro de familia"), así que seguían en verde sin
+  proteger nada. En T15 se reemplazaron por imports y se corrigieron las 2
+  aserciones desactualizadas (TC10 y TC20) al comportamiento real.
 - **H7:** `kpi_card` tiene 5 diseños distintos, no 5 copias. Su unificación se
   difiere al revamp visual.
