@@ -195,14 +195,14 @@ refactorizar:
 - [ ] Toda la funcionalidad del inventario sigue funcionando: tests en verde y recorrido manual en FC y YC.
 - [ ] Los 382 tests que hoy pasan siguen pasando, y los 9 que fallan quedan diagnosticados y resueltos o documentados.
 - [ ] Ningún test copia lógica de producción: todos importan el código real.
-- [ ] `core/` no importa `streamlit` (lo verifica un test).
+- [ ] `core/` no importa `streamlit` (lo verifica un test), y sus funciones públicas tienen firmas tipadas y docstrings (base de las tools del agente).
 - [ ] Ninguna página importa de otra página.
 - [ ] Cada helper de UI y de formato *idéntico* está definido una sola vez. Las
       variantes que producen salidas distintas (p. ej. las 5 versiones de `kpi_card`)
       no se fusionan acá: quedan documentadas para el revamp visual.
 - [ ] `DEV_MODE` se lee en un único lugar, con un default único y documentado.
 - [ ] No queda SQL dentro de `pages/`.
-- [ ] Ninguna página supera ~500 líneas (hoy el máximo es 1977). Es un
+- [ ] Ninguna página supera ~500 líneas (hoy el máximo es 1977), salvo My Clusters y Cluster Results (ver pivot). Es un
       objetivo, no una excusa para partir archivos de forma artificial: si una
       página queda en 600 líneas de render cohesivo, se justifica en el PR.
 - [ ] Ningún test pega contra una DB real (lo garantiza el `conftest`).
@@ -251,6 +251,29 @@ refactorizar:
    con un movimiento.
 3. **MySQL local disponible** (verificado el 2026-10-11: 19 tablas, 2783 filas
    en `fac_songs`). El modo FC se verifica en vivo además de con tests.
+
+## Pivot aprobado (2026-10-11) y consecuencias para este refactor
+
+Facu aprobó el pivot de `tasks/agent-pivot.md` con este alcance: **F1 a F4 en
+Streamlit, con Foundry Local como LLM y sin multi-fuente**. F5 (cambio de stack),
+la parte de negocio y multi-fuente no están aprobados. El refactor es la fase
+F0 del pivot.
+
+- **`core/` es la base de las tools del agente.** Funciones con firmas
+  completamente tipadas, docstrings claras (el LLM las lee) y entradas/salidas
+  simples: DataFrames, dicts y escalares; nada de `st.*` ni de estado global.
+- **El flujo de armado de playlists (My Clusters + Cluster Results) lo va a
+  reemplazar el agente.** Hasta que eso pase tiene que seguir funcionando igual
+  ("no perder funcionalidad" sigue vigente), pero no se invierte en adelgazar su
+  UI: se cancelan T26 y T27. Su lógica sí se extrae a `core/` (T15–T18), porque
+  la usan las tools.
+- **Las demás páginas quedan como "Vistas"** del agente. En la Fase 4, la
+  prioridad es extraer su lógica de dominio a `core/` (p. ej. duplicados y
+  versiones de Comparación, perfiles de Audio DNA → tool `compare_playlists`).
+  Mover HTML inline a `ui/` solo se hace si es barato: la UI no se pule más allá
+  de lo que piden las tareas.
+- **El criterio de ~500 líneas por página** no aplica a My Clusters ni a
+  Cluster Results.
 
 ## Contexto operativo
 

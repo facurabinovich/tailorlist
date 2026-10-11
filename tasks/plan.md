@@ -36,6 +36,10 @@ necesitan.
   los smoke tests reusan el patrón de mocks que ya usan los tests de cada
   página. Las capturas se toman una vez antes de empezar y una vez al final.
 
+## Pivot (2026-10-11)
+
+Este refactor es la F0 del pivot a agente LLM (`tasks/agent-pivot.md`; aprobado F1 a F4 en Streamlit, con Foundry Local y sin multi-fuente). Cambios: se cancelan T26 y T27; `core/` va con firmas tipadas y docstrings; la Fase 4 prioriza extraer la lógica de dominio por sobre mover HTML. Detalle en `SPEC.md`.
+
 ## Fases
 
 ### Fase 0: red de seguridad (T1–T4)

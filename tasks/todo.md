@@ -140,6 +140,8 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
 ---
 
 ## Fase 4: páginas finas
+**Prioridad por el pivot:** primero la lógica de dominio a `core/`, con firmas tipadas, porque van a ser tools (sobre todo duplicados y versiones de Comparison y los perfiles de Audio DNA). Mover HTML a `ui/` solo si es barato.
+
 Cada task: lógica restante a `core/` (con tests que importan el código real en
 lugar de copiarlo), HTML repetido a `ui/`, secciones en funciones `render_*`
 cuando no dependen de un montón de globales. La meta es ~500 líneas por
@@ -152,8 +154,8 @@ página; si una queda por encima, se justifica en el commit.
 - [ ] **T23: Audio DNA** (layout y colores a `ui/charts.py`) · M
 - [ ] **T24: Glossary y Contact** · S
 - [ ] **T25: Home y Enrich** (flujo YC: playlists en la URL, recuperación de sid, ETA) · M
-- [ ] **T26: My Clusters (render)** · L → se parte al llegar, según lo que quede después de la Fase 3
-- [ ] **T27: Cluster Results (render)** · L → se parte al llegar
+- [~] ~~**T26: My Clusters (render)**~~: cancelada por el pivot. El agente reemplaza este flujo; su lógica ya se extrae en T15–T18.
+- [~] ~~**T27: Cluster Results (render)**~~: cancelada por el pivot.
 
   Para cada una:
   - Acceptance: misma salida visible, tests de la página importando el código real y página con un tamaño razonable.
