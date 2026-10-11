@@ -3,6 +3,8 @@ import math as _math
 
 import streamlit as st
 from config import PAGE_CONFIG
+from config import is_dev_mode
+from app_state.session import MODE_YC
 
 st.set_page_config(**PAGE_CONFIG)
 
@@ -25,8 +27,7 @@ if not st.session_state.get("uc_playlists"):
     st.session_state["uc_enrichment_state"] = "idle"
     st.switch_page("pages/0_home.py")
 
-import os
-if os.getenv("DEV_MODE") != "1" and not st.session_state.get("_enrichment_start_tracked"):
+if not is_dev_mode() and not st.session_state.get("_enrichment_start_tracked"):
     try:
         from db.queries import track_event
         # Use uc_playlists hash as a proxy session id since uc_session_id not set yet
@@ -180,7 +181,7 @@ if not to_enrich or cursor >= total:
         st.session_state["uc_session_id"] = str(uuid.uuid4())
 
     # Persist YC session to MySQL (skipped in DEV_MODE)
-    if os.getenv("DEV_MODE") != "1":
+    if not is_dev_mode():
         try:
             save_uc_session(
                 session_id = st.session_state["uc_session_id"],
@@ -194,7 +195,7 @@ if not to_enrich or cursor >= total:
             logging.getLogger(__name__).warning("Failed to save YC session: %s", e)
 
     # Track enrichment completion
-    if os.getenv("DEV_MODE") != "1":
+    if not is_dev_mode():
         try:
             from db.queries import track_event, get_engine
             from sqlalchemy import text
@@ -376,7 +377,7 @@ if st.button("🗑️ Cancel and start over", type="secondary", use_container_wi
                     st.session_state["uc_session_id"]        = _prev_sid
                     st.session_state["uc_active"]            = True
                     st.session_state["uc_enrichment_state"]  = "idle"
-                    st.session_state["mode"]                 = "🔗 Your Collection"
+                    st.session_state["mode"]                 = MODE_YC
                     st.query_params["sid"]                   = _prev_sid
                     _restored = True
             except Exception:
@@ -388,7 +389,7 @@ if st.button("🗑️ Cancel and start over", type="secondary", use_container_wi
             st.session_state["uc_playlists"]        = _prev_playlists or []
             st.session_state["uc_active"]           = True
             st.session_state["uc_enrichment_state"] = "idle"
-            st.session_state["mode"]                = "🔗 Your Collection"
+            st.session_state["mode"]                = MODE_YC
 
     st.switch_page("pages/0_home.py")
 

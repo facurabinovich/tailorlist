@@ -50,7 +50,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Verify: suite (`test_sid_recovery` y `test_analytics_identity` incluidos).
   - Files: `app_state/__init__.py`, `app_state/session.py`, `utils.py`, `db/queries.py`.
 
-- [ ] **T7: Páginas usan `is_dev_mode()` y las constantes de modo** · M (mecánico, 9 páginas)
+- [x] **T7: Páginas usan `is_dev_mode()` y las constantes de modo** · M (mecánico, 9 páginas)
   - Acceptance: ninguna página lee `os.getenv("DEV_MODE")` ni compara contra el literal `"🔗 Your Collection"`.
   - Verify: suite; `grep -rn 'getenv("DEV_MODE"\|Your Collection"' pages/` sin resultados.
   - Files: las 9 páginas con el literal (`0_home`, `1_Overview`, `2_Playlist_Detail`, `3_Artist_Album`, `4_Playlist_Comparison`, `5_Audio_DNA`, `6_My_Clusters`, `_Enrich`, `_Cluster_Results`). Excede las 5, pero es un reemplazo mecánico que conviene hacer de una vez.

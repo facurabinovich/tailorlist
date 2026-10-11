@@ -6,6 +6,7 @@ import datetime
 
 from utils import inject_global_css, inject_sidebar_nav, check_collection_mode, spotify_icon_html, page_brand_html
 from db.queries import get_all_tracks
+from app_state.session import MODE_YC
 
 # ── Boilerplate ───────────────────────────────────────────────────────────────
 inject_global_css()
@@ -218,7 +219,7 @@ min_threshold = MIN_TRACKS_ARTIST if is_artist_mode else MIN_TRACKS_ALBUM
 enough = track_count >= min_threshold
 
 # ── Duration: normalise YC milliseconds → minutes ────────────────────────────
-is_yc = st.session_state.get("mode") == "🔗 Your Collection"
+is_yc = st.session_state.get("mode") == MODE_YC
 if "duration_raw" in sel_df.columns:
     if is_yc:
         sel_df["duration_min"] = sel_df["duration_raw"] / 60_000

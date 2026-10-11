@@ -3,6 +3,7 @@ import plotly.graph_objects as go
 import re
 import pandas as pd
 from db.queries import get_all_tracks
+from app_state.session import MODE_FC, MODE_YC
 from utils import inject_global_css, inject_sidebar_nav, spotify_icon_html, page_brand_html
 
 inject_global_css()
@@ -23,8 +24,8 @@ if "album_name" not in df.columns:
 
 deduped = df.drop_duplicates(subset="track_id").copy()
 
-mode               = st.session_state.get("mode", "🎵 Demo Collection")
-is_your_collection = (mode == "🔗 Your Collection")
+mode               = st.session_state.get("mode", MODE_FC)
+is_your_collection = (mode == MODE_YC)
 
 # Tracks per playlist
 counts = (
@@ -176,7 +177,7 @@ st.markdown("<hr style='border-color:#333;margin-top:16px;margin-bottom:24px;'>"
 # ---------------------------------------------------------------------------
 # Active collection banner
 # ---------------------------------------------------------------------------
-if st.session_state.get("mode") == "🔗 Your Collection" and st.session_state.get("uc_active"):
+if st.session_state.get("mode") == MODE_YC and st.session_state.get("uc_active"):
     n_pl  = df["playlist_name"].nunique()
     st.info(f"🎵 Viewing: Your Collection — {total_tracks:,} unique tracks across {n_pl} playlists (duplicates across playlists not counted)")
 

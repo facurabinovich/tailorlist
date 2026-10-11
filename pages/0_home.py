@@ -9,6 +9,8 @@ import streamlit as st
 _log = logging.getLogger(__name__)
 
 from utils import inject_global_css
+from config import is_dev_mode
+from app_state.session import MODE_FC, MODE_YC
 inject_global_css()
 from db.queries import load_playlist_track_counts
 
@@ -45,8 +47,8 @@ if (_sid
         st.session_state["uc_active"]           = True
         st.session_state["uc_enrichment_state"] = "idle"
         st.session_state["uc_session_id"]       = _sid
-        st.session_state["mode"]                = "🔗 Your Collection"
-        if os.getenv("DEV_MODE") != "1":
+        st.session_state["mode"]                = MODE_YC
+        if not is_dev_mode():
             touch_uc_session(_sid)
     else:
         st.session_state["_session_expired"] = True
@@ -59,7 +61,7 @@ if (_sid
 # ── DEV MODE — must run before inject_sidebar_nav() ─────────────────────────
 import config  # noqa: F401  (loads .env)
 import json
-if (os.getenv("DEV_MODE") == "1"
+if (is_dev_mode()
         and not st.session_state.get("uc_active")
         and not st.session_state.get("_dev_loaded")
         and not st.session_state.get("uc_playlists")):
@@ -73,21 +75,21 @@ if (os.getenv("DEV_MODE") == "1"
         st.session_state["uc_playlists"]        = _dev_data["playlists"]
         st.session_state["uc_active"]           = True
         st.session_state["uc_enrichment_state"] = "idle"
-        st.session_state["mode"]                = "🔗 Your Collection"
+        st.session_state["mode"]                = MODE_YC
         st.session_state["_dev_loaded"]         = True
 
 # ── Landing-page deep-link: ?mode=uc → Your Collection, ?mode=demo → Demo ────
 _mode_param = st.query_params.get("mode", "")
 if _mode_param and not st.session_state.get("mode"):
     if _mode_param == "uc":
-        st.session_state["mode"] = "🔗 Your Collection"
+        st.session_state["mode"] = MODE_YC
     elif _mode_param == "demo":
-        st.session_state["mode"] = "🎵 Demo Collection"
+        st.session_state["mode"] = MODE_FC
 
 inject_sidebar_nav("Home")
 
 # ── site_visit event — once per session ───────────────────────────────────────
-if os.getenv("DEV_MODE") != "1":
+if not is_dev_mode():
     _vid = st.session_state.get("visitor_id")
     if _vid and not st.session_state.get(f"_tracked_site_visit_{_vid}"):
         try:
@@ -107,7 +109,7 @@ if os.getenv("DEV_MODE") != "1":
 # ===========================================================================
 # YOUR COLLECTION MODE
 # ===========================================================================
-if st.session_state.get("mode") == "🔗 Your Collection":
+if st.session_state.get("mode") == MODE_YC:
 
     import spotipy
     from spotify_client import extract_playlist_id, get_spotify_client
@@ -572,7 +574,7 @@ document.cookie = 'tailorlist_sid=;path=/;max-age=0';
                             st.session_state["uc_active"] = False
                             st.session_state["uc_enrichment_state"] = "idle"
                             # Update persisted session with new playlist list
-                            if st.session_state.get("uc_session_id") and os.getenv("DEV_MODE") != "1":
+                            if st.session_state.get("uc_session_id") and not is_dev_mode():
                                 try:
                                     from db.queries import save_uc_session
                                     save_uc_session(
@@ -605,7 +607,7 @@ document.cookie = 'tailorlist_sid=;path=/;max-age=0';
 
             # DEV — remove before deploy
             import json, os
-            if os.getenv("DEV_MODE") == "1":
+            if is_dev_mode():
                 if st.button("💾 Save as dev collection", type="secondary", key="dev_save"):
                     data = {
                         "enriched":  st.session_state["uc_enriched"],

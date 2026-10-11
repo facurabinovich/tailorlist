@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -13,6 +12,8 @@ from config import (
     CLUSTER_NAMES, CLUSTER_COLORS, CLUSTER_FEATURES,
 )
 from db.queries import load_cluster_data, get_tracks, load_unmatched_tracks, _add_artist_display
+from config import is_dev_mode
+from app_state.session import MODE_FC, MODE_YC
 from datetime import datetime
 from spotify_client import render_export_to_spotify
 from utils import inject_global_css, inject_sidebar_nav, check_collection_mode, spotify_icon_html, page_brand_html
@@ -38,7 +39,7 @@ if st.session_state.pop("_start_fresh", False):
 from db.queries import load_cluster_progress, save_cluster_progress, reset_cluster_progress
 user_key = (
     st.session_state.get("uc_session_id", "anonymous")
-    if st.session_state.get("mode") == "🔗 Your Collection"
+    if st.session_state.get("mode") == MODE_YC
     else "facu"
 )
 
@@ -280,7 +281,7 @@ def load_all_grouping_fc() -> pd.DataFrame:
     return load_all_tracks_for_grouping()
 
 def load_data(mode: str = "") -> pd.DataFrame:
-    if mode != "🔗 Your Collection":
+    if mode != MODE_YC:
         return load_data_fc()
     else:
         df = get_tracks()
@@ -294,7 +295,7 @@ def load_data(mode: str = "") -> pd.DataFrame:
         return df[available].drop_duplicates(subset="track_id")
 
 
-_current_mode = st.session_state.get("mode", "🎵 Demo Collection")
+_current_mode = st.session_state.get("mode", MODE_FC)
 
 # Clear stale playlist selection when mode switches
 if st.session_state.get("_clusters_mode") != _current_mode:
@@ -355,7 +356,7 @@ def _rd_to_decade(rd: str) -> "int | None":
     except (ValueError, TypeError):
         return None
 
-if _current_mode == "🔗 Your Collection":
+if _current_mode == MODE_YC:
     _yc_ne_rows = [
         {
             "track_id":      t.get("id", ""),
@@ -398,7 +399,7 @@ _done_set_for_opts = st.session_state.get("done_tracks", set())
 if _done_set_for_opts:
     # For playlists use the full track pool so a playlist with only non-enriched tracks
     # isn't prematurely hidden after some of its enriched tracks get marked done
-    if _current_mode != "🔗 Your Collection":
+    if _current_mode != MODE_YC:
         _pool_pl = load_all_grouping_fc()
         _pool_pl = _pool_pl[~_pool_pl["track_id"].isin(_done_set_for_opts)]
     else:
@@ -412,7 +413,7 @@ all_playlists = sorted(_pool_pl["playlist_name"].unique().tolist())
 
 # Compute total collection size once — used by progress bar and no-features note
 try:
-    if _current_mode != "🔗 Your Collection":
+    if _current_mode != MODE_YC:
         from db.queries import load_all_tracks
         _total_collection_size = len(load_all_tracks().drop_duplicates("track_id"))
     else:
@@ -422,7 +423,7 @@ try:
 except Exception:
     _total_collection_size = len(df_all)
 
-_pl_key = "clusters_pl_filter_fc" if _current_mode != "🔗 Your Collection" else "clusters_pl_filter_yc"
+_pl_key = "clusters_pl_filter_fc" if _current_mode != MODE_YC else "clusters_pl_filter_yc"
 _stored_playlists = st.session_state.get(_pl_key, [])
 if any(p not in all_playlists for p in _stored_playlists):
     st.session_state.pop(_pl_key, None)
@@ -779,7 +780,7 @@ def _load_unmatched_fc() -> pd.DataFrame:
     return load_unmatched_tracks()
 
 def _load_unmatched(mode: str) -> pd.DataFrame:
-    if mode != "🔗 Your Collection":
+    if mode != MODE_YC:
         return _load_unmatched_fc()
     else:
         skipped = st.session_state.get("uc_skipped", [])
@@ -821,7 +822,7 @@ hr(top=16, bottom=20)
 # Active collection banner
 # ════════════════════════════════════════════════════════════════════════════
 _intra_dupes = 0  # intra-playlist duplicates dropped by enrichment pipeline
-if _current_mode == "🔗 Your Collection":
+if _current_mode == MODE_YC:
     uc_enriched = st.session_state.get("uc_enriched", [])
     n_with_features = len(uc_enriched)
     n_missing = (
@@ -997,7 +998,7 @@ if _done_tracks:
             ):
                 _all_pool_ids = (
                     set(load_all_grouping_fc()["track_id"])
-                    if _current_mode != "🔗 Your Collection"
+                    if _current_mode != MODE_YC
                     else set(_df_all_full["track_id"])
                 )
                 _to_skip = _all_pool_ids - _handled_ids
@@ -1011,7 +1012,7 @@ if _done_tracks:
                     st.session_state.get("_skipped_count", 0) + len(_to_skip)
                 )
                 st.rerun()
-        if _current_mode == "🔗 Your Collection":
+        if _current_mode == MODE_YC:
             _skip_note = (
                 f"ℹ️ {_remaining:,} track(s) have no audio features and couldn't be clustered — "
                 f"use the Unmatched Tracks section after running to assign them manually, "
@@ -1043,7 +1044,7 @@ selected_playlists = st.multiselect(
     key=_pl_key,
 )
 
-if _current_mode != "🔗 Your Collection":
+if _current_mode != MODE_YC:
     if st.button("🔄 Refresh track library", key="refresh_library", help="Reload tracks from DB — use after adding new playlists"):
         load_data_fc.clear()
         load_all_grouping_fc.clear()
@@ -1069,7 +1070,7 @@ with filter_left:
             .dropna().astype("Int64").unique().tolist()
         )
         decade_options = [str(d) for d in available_decades]
-        _decade_key = "clusters_decade_filter_fc" if _current_mode != "🔗 Your Collection" else "clusters_decade_filter_yc"
+        _decade_key = "clusters_decade_filter_fc" if _current_mode != MODE_YC else "clusters_decade_filter_yc"
         selected_decades = st.multiselect(
             "Decades to include",
             options=decade_options,
@@ -1092,7 +1093,7 @@ with filter_right:
             for fam in _assign_family(g)
             if fam != "Other"
         )) + ["Other"]
-        _genre_key = "clusters_genre_filter_fc" if _current_mode != "🔗 Your Collection" else "clusters_genre_filter_yc"
+        _genre_key = "clusters_genre_filter_fc" if _current_mode != MODE_YC else "clusters_genre_filter_yc"
         selected_families = st.multiselect(
             "Genre families to include",
             options=all_families_available,
@@ -1162,7 +1163,7 @@ elif grouping_mode == "🗂️ By category":
         unsafe_allow_html=True,
     )
     _info_pl_now = st.session_state.get(_pl_key, all_playlists)
-    if _current_mode != "🔗 Your Collection":
+    if _current_mode != MODE_YC:
         _ginfo_pool = load_all_grouping_fc()
         _ginfo_pool = _ginfo_pool[_ginfo_pool["playlist_name"].isin(_info_pl_now)]
     else:
@@ -1210,7 +1211,7 @@ else:
 
     # Build raw genre pool from all tracks in selected playlists
     _sgl_pl = st.session_state.get(_pl_key, all_playlists)
-    if _current_mode != "🔗 Your Collection":
+    if _current_mode != MODE_YC:
         _sgl_pool = load_all_grouping_fc()
         _sgl_pool = _sgl_pool[_sgl_pool["playlist_name"].isin(_sgl_pl)]
     else:
@@ -1365,7 +1366,7 @@ _no_grouping_dim = (
 
 if _no_grouping_dim:
     _prev_count = 0
-elif _grouping_mode_current == "🗂️ By category" and _current_mode != "🔗 Your Collection":
+elif _grouping_mode_current == "🗂️ By category" and _current_mode != MODE_YC:
     # Category mode — use full track pool including unmatched
     _cat_df = load_all_grouping_fc()
     _cat_pl = st.session_state.get(_pl_key, all_playlists)
@@ -1396,7 +1397,7 @@ elif _grouping_mode_current == "🗂️ By category" and _current_mode != "🔗 
     _n_no_af_cat     = int(_cat_filtered[~_cat_filtered["track_id"].isin(set(df_all["track_id"]))]["track_id"].nunique())
     _prev_count      = _cat_filtered["track_id"].nunique() - _n_unmatched_cat
 
-elif _grouping_mode_current == "🗂️ By category" and _current_mode == "🔗 Your Collection":
+elif _grouping_mode_current == "🗂️ By category" and _current_mode == MODE_YC:
     _cat_filtered = _df_all_full[
         _df_all_full["playlist_name"].isin(st.session_state.get(_pl_key, all_playlists))
     ].copy()
@@ -1428,7 +1429,7 @@ elif _grouping_mode_current == "🏷️ By specific genre":
         _prev_count = 0
         _sgl_pool_total = 0
     else:
-        if _current_mode != "🔗 Your Collection":
+        if _current_mode != MODE_YC:
             _sgl_preview_pool = load_all_grouping_fc()
         else:
             _sgl_preview_pool = _df_all_full
@@ -1471,7 +1472,7 @@ else:
         _done_df, _pl_now, selected_decades, selected_families, [], all_families_available
     ) if _done_set else 0
     _prev_clusterable -= _done_in_pool
-    if _current_mode != "🔗 Your Collection":
+    if _current_mode != MODE_YC:
         _unmatched_preview = _load_unmatched_fc()
         _unmatched_preview = _unmatched_preview[
             _unmatched_preview["playlist_name"].isin(_pl_now)
@@ -1667,7 +1668,7 @@ if submitted:
         _group_by_decade = _dim_choice_submit in ("📅 Decade only", "📅🎸 Both")
         _group_by_genre  = _dim_choice_submit in ("🎸 Genre family only", "📅🎸 Both")
 
-        if _current_mode != "🔗 Your Collection":
+        if _current_mode != MODE_YC:
             from db.queries import load_all_tracks_for_grouping
             df_all_for_grouping = load_all_tracks_for_grouping()
             df_for_grouping = df_all_for_grouping[
@@ -1747,7 +1748,7 @@ if submitted:
             "df_unmatched_cat":  df_unmatched_cat,
             "total_playlists":   len(all_playlists),
         }
-        if os.getenv("DEV_MODE") != "1":
+        if not is_dev_mode():
             try:
                 from db.queries import track_event as _te
                 _cr = st.session_state["clustering_results"]
@@ -1769,7 +1770,7 @@ if submitted:
             st.warning("Select at least one genre to cluster by.")
             st.stop()
 
-        if _current_mode != "🔗 Your Collection":
+        if _current_mode != MODE_YC:
             from db.queries import load_all_tracks_for_grouping
             df_for_sgl = load_all_tracks_for_grouping()
             df_for_sgl = df_for_sgl[df_for_sgl["playlist_name"].isin(selected_playlists)].copy()
@@ -1842,7 +1843,7 @@ if submitted:
             "df_unmatched_cat":   _df_unmatched_sgl,
             "total_playlists":    len(all_playlists),
         }
-        if os.getenv("DEV_MODE") != "1":
+        if not is_dev_mode():
             try:
                 from db.queries import track_event as _te
                 _cr = st.session_state["clustering_results"]
@@ -1961,7 +1962,7 @@ if submitted:
             "total_playlists":   len(all_playlists),
             "df_unmatched_cat":  _unmatched_pre,
         }
-        if os.getenv("DEV_MODE") != "1":
+        if not is_dev_mode():
             try:
                 from db.queries import track_event as _te
                 _cr = st.session_state["clustering_results"]

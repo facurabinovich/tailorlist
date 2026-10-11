@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from db.queries import get_all_tracks, load_audio_features_by_playlist, load_playlist_meta, load_tracks_added_by_month
 from config import CLUSTER_FEATURES
+from app_state.session import MODE_YC
 
 from utils import inject_global_css
 
@@ -61,7 +62,7 @@ def highlight_card(icon: str, label: str, track: str, artist: str, badge: str) -
 # ---------------------------------------------------------------------------
 df = get_all_tracks()
 
-if st.session_state.get("mode") != "🔗 Your Collection":
+if st.session_state.get("mode") != MODE_YC:
     af_avg = load_audio_features_by_playlist()
     meta   = load_playlist_meta()
 else:
@@ -100,7 +101,7 @@ st.markdown("<hr style='border-color:#333;margin-top:16px;margin-bottom:20px;'>"
 # ---------------------------------------------------------------------------
 # Active collection banner
 # ---------------------------------------------------------------------------
-if st.session_state.get("mode") == "🔗 Your Collection" and st.session_state.get("uc_active"):
+if st.session_state.get("mode") == MODE_YC and st.session_state.get("uc_active"):
     n_unique = df["track_id"].nunique()
     n_pl     = df["playlist_name"].nunique()
     st.info(f"🎵 Viewing: Your Collection — {n_unique:,} unique tracks across {n_pl} playlists (duplicates across playlists not counted)")
@@ -113,7 +114,7 @@ selected  = st.selectbox("Choose a playlist", playlists, label_visibility="colla
 
 pl_df   = df[df["playlist_name"] == selected].copy()
 # Normalize duration to minutes (YC delivers milliseconds, FC delivers minutes)
-if "duration_raw" in pl_df.columns and st.session_state.get("mode") == "🔗 Your Collection":
+if "duration_raw" in pl_df.columns and st.session_state.get("mode") == MODE_YC:
     pl_df["duration_raw"] = pl_df["duration_raw"] / 60000
 pl_meta = meta[meta["playlist_name"] == selected].iloc[0]
 
@@ -280,7 +281,7 @@ st.markdown("<hr style='border-color:#333;margin-top:24px;margin-bottom:24px;'>"
 
 # Raw per-playlist data with real Spotify IDs (used for duplicate detection).
 # Rebuilt from session state so skipped/failed tracks use their real Spotify IDs, not synthetic ones.
-if st.session_state.get("mode") == "🔗 Your Collection" and st.session_state.get("uc_active"):
+if st.session_state.get("mode") == MODE_YC and st.session_state.get("uc_active"):
     _pl_all_raw = [
         t for t in (
             st.session_state.get("uc_enriched", [])
@@ -440,7 +441,7 @@ if _pl_has_audio:
     )
     st.plotly_chart(fig_radar, use_container_width=True)
 else:
-    if st.session_state.get("mode") == "🔗 Your Collection":
+    if st.session_state.get("mode") == MODE_YC:
         st.info(
             "Audio features aren't available for this playlist — "
             "these tracks weren't found in the audio database during enrichment."
@@ -709,7 +710,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if st.session_state.get("mode") != "🔗 Your Collection":
+if st.session_state.get("mode") != MODE_YC:
     monthly_raw = load_tracks_added_by_month(selected)
 else:
     if "added_at" in pl_df.columns:

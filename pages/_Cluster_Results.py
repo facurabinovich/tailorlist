@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -7,6 +6,8 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 from config import CLUSTER_FEATURES
+from config import is_dev_mode
+from app_state.session import MODE_FC, MODE_YC
 from db.queries import (
     load_unmatched_tracks, _add_artist_display,
     load_cluster_progress, save_cluster_progress, save_cluster_progress_bulk,
@@ -173,7 +174,7 @@ def _load_unmatched_fc() -> pd.DataFrame:
     return load_unmatched_tracks()
 
 def _load_unmatched(mode: str) -> pd.DataFrame:
-    if mode != "🔗 Your Collection":
+    if mode != MODE_YC:
         return _load_unmatched_fc()
     else:
         skipped = st.session_state.get("uc_skipped", [])
@@ -226,7 +227,7 @@ group_by_decade  = r.get("group_by_decade", True)
 group_by_genre   = r.get("group_by_genre", True)
 _is_category_mode = grouping_mode == "🗂️ By category"
 _is_sgl_mode      = grouping_mode == "🏷️ By specific genre"
-_current_mode    = st.session_state.get("mode", "🎵 Facu's Collection")
+_current_mode    = st.session_state.get("mode", MODE_FC)
 df_unmatched_cat = r.get("df_unmatched_cat", pd.DataFrame())
 
 # Human-readable label for the grouping dimensions used in category mode
@@ -241,14 +242,14 @@ _grp_dim_str = " or ".join(_grp_dim_parts) if _grp_dim_parts else "grouping data
 # ── user_key ──────────────────────────────────────────────────────────────────
 user_key = (
     st.session_state.get("uc_session_id", "anonymous")
-    if _current_mode == "🔗 Your Collection"
+    if _current_mode == MODE_YC
     else "facu"
 )
 
 
 def _track(event: str, **props):
     """Fire-and-forget analytics event — never breaks the page."""
-    if os.getenv("DEV_MODE") == "1":
+    if is_dev_mode():
         return
     try:
         from db.queries import track_event
@@ -931,7 +932,7 @@ for rank, row in cluster_sorted.iterrows():
 
         _slug = row["cluster_name"].replace(" ", "_").replace("·", "").replace("  ", "_")
         _spotlistr_key = f"spotlistr_clicked_{rank}_{i}"
-        _dev_mode = os.getenv("DEV_MODE", "0") == "1"
+        _dev_mode = is_dev_mode()
         _sp_oauth = st.session_state.get("sp_oauth")
 
         with st.expander(f"View {int(row['count'])} tracks · Export to Spotify →"):
@@ -1038,7 +1039,7 @@ for rank, row in cluster_sorted.iterrows():
                                 key=f"confirm_yes_{rank}_{i}",
                                 type="primary",
                             ):
-                                if os.getenv("DEV_MODE") != "1":
+                                if not is_dev_mode():
                                     with st.spinner("Saving…"):
                                         save_cluster_progress_bulk(user_key, list(cluster_track_ids), status="done")
                                     _track("mark_done_click",
@@ -1061,7 +1062,7 @@ for rank, row in cluster_sorted.iterrows():
                             if _n_unassigned_here > 0:
                                 st.session_state[_confirm_key] = True
                             else:
-                                if os.getenv("DEV_MODE") != "1":
+                                if not is_dev_mode():
                                     with st.spinner("Saving…"):
                                         save_cluster_progress_bulk(user_key, list(cluster_track_ids), status="done")
                                     _track("mark_done_click",
@@ -1218,7 +1219,7 @@ def _render_unmatched_section():
             )
 
             _save_errors = []
-            if os.getenv("DEV_MODE") != "1":
+            if not is_dev_mode():
                 for _tid, _cname in _just_assigned.items():
                     try:
                         save_cluster_progress(user_key, _tid, status="manual", cluster_name=_cname)

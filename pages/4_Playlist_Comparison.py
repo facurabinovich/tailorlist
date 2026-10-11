@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import pandas as pd
 from db.queries import get_all_tracks, load_audio_features_by_playlist, load_playlist_meta
 from config import AUDIO_FEATURES, NORMALIZED_FEATURES
+from app_state.session import MODE_YC
 
 from utils import inject_global_css
 inject_global_css()
@@ -48,13 +49,13 @@ st.markdown(
 # ---------------------------------------------------------------------------
 # Active collection banner
 # ---------------------------------------------------------------------------
-if st.session_state.get("mode") == "🔗 Your Collection" and st.session_state.get("uc_active"):
+if st.session_state.get("mode") == MODE_YC and st.session_state.get("uc_active"):
     n_unique = df["track_id"].nunique()
     n_pl     = df["playlist_name"].nunique()
     st.info(f"🎵 Viewing: Your Collection — {n_unique:,} unique tracks across {n_pl} playlists (duplicates across playlists not counted)")
 # ---------------------------------------------------------------------------
 
-if st.session_state.get("mode") == "🔗 Your Collection":
+if st.session_state.get("mode") == MODE_YC:
     meta = pd.DataFrame(st.session_state.get("uc_playlists", []))
     meta = meta.rename(columns={"name": "playlist_name", "track_count": "total_tracks"})
     _af_cols = [c for c in ["energy", "acousticness", "valence", "danceability",
@@ -169,7 +170,7 @@ def _fmt_dupe_playlists(pl_list: list) -> str:
 
 # Build raw per-occurrence data (real Spotify IDs) shared by both duplicate sections.
 # Use raw session state in YC mode so skipped/failed tracks retain their real Spotify IDs.
-_is_yc = st.session_state.get("mode") == "🔗 Your Collection" and st.session_state.get("uc_active")
+_is_yc = st.session_state.get("mode") == MODE_YC and st.session_state.get("uc_active")
 if _is_yc:
     _all_uc_raw = (
         st.session_state.get("uc_enriched", [])
@@ -302,7 +303,7 @@ st.markdown("<p style='color:#B3B3B3; margin-top:-8px; font-size:0.85rem;'>The m
 
 if "duration_raw" in df.columns:
     dur_df = df.copy()
-    if st.session_state.get("mode") == "🔗 Your Collection":
+    if st.session_state.get("mode") == MODE_YC:
         dur_df["duration_raw"] = dur_df["duration_raw"] / 60000
 
     dur          = dur_df.groupby("playlist_name")["duration_raw"].agg(["mean", "min", "max"]).reset_index()

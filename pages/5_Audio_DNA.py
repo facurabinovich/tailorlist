@@ -16,6 +16,7 @@ import plotly.graph_objects as go
 
 from db.queries import get_tracks
 from config import NORMALIZED_FEATURES, AUDIO_FEATURES
+from app_state.session import MODE_FC, MODE_YC
 from utils import inject_global_css, inject_sidebar_nav, check_collection_mode, spotify_icon_html, page_brand_html
 
 # ── Layout base ────────────────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ if not check_collection_mode():
     st.stop()
 
 # Clear playlist filter when mode switches so stale keys don't corrupt the multiselect
-_current_mode = st.session_state.get("mode", "🎵 Demo Collection")
+_current_mode = st.session_state.get("mode", MODE_FC)
 if st.session_state.get("_audio_dna_mode") != _current_mode:
     st.session_state["_audio_dna_mode"] = _current_mode
     st.session_state.pop("global_filter_fc", None)
@@ -96,7 +97,7 @@ with st.spinner("Loading audio data…"):
 playlists = sorted(df_all["playlist_name"].unique())
 pl_colors = _playlist_color_map(playlists)
 
-is_yc = st.session_state.get("mode") == "🔗 Your Collection"
+is_yc = st.session_state.get("mode") == MODE_YC
 if is_yc:
     # Unique counts via set operations on Spotify track IDs
     _enriched_ids_dna = {t["id"] for t in st.session_state.get("uc_enriched", []) if t.get("id")}
@@ -120,7 +121,7 @@ if is_yc:
         )
 
 # ── Global filter — drives ALL sections ───────────────────────────────────────
-_pl_key = "global_filter_yc" if _current_mode == "🔗 Your Collection" else "global_filter_fc"
+_pl_key = "global_filter_yc" if _current_mode == MODE_YC else "global_filter_fc"
 with st.expander("🎛️ Filter playlists", expanded=False):
     selected_pl = st.multiselect(
         "Select playlists",
