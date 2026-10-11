@@ -7,6 +7,7 @@ import numpy as np
 from db.queries import get_all_tracks, load_audio_features_by_playlist, load_playlist_meta, load_tracks_added_by_month
 from config import CLUSTER_FEATURES
 from app_state.session import MODE_YC
+from core.formatting import fmt_duration
 
 from ui.theme import inject_global_css
 
@@ -29,11 +30,6 @@ _BASE_LAYOUT = dict(
 )
 
 SPOTIFY_LOGO = spotify_icon_html(36)
-
-def fmt_duration(minutes: float) -> str:
-    m = int(minutes)
-    s = int(round((minutes - m) * 60))
-    return f"{m}:{s:02d}"
 
 def kpi_card(icon: str, label: str, value: str, sub: str = "") -> str:
     sub_html = f"<div style='color:#B3B3B3;font-size:0.78rem;margin-top:4px;'>{html.escape(str(sub))}</div>" if sub else ""

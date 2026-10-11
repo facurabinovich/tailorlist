@@ -16,10 +16,7 @@ from unittest.mock import MagicMock, patch
 # without pulling in Streamlit at import time.
 # ---------------------------------------------------------------------------
 
-def fmt_duration(minutes: float) -> str:
-    m = int(minutes)
-    s = int(round((minutes - m) * 60))
-    return f"{m}:{s:02d}"
+from core.formatting import fmt_duration
 
 
 def compute_kpis(deduped: pd.DataFrame, is_your_collection: bool = False):

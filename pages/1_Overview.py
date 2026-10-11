@@ -4,6 +4,7 @@ import re
 import pandas as pd
 from db.queries import get_all_tracks
 from app_state.session import MODE_FC, MODE_YC
+from core.formatting import fmt_duration
 from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
 from ui.nav import inject_sidebar_nav
 
@@ -120,11 +121,6 @@ if "release_year" in deduped.columns and deduped["release_year"].notna().any():
     newest_year  = int(valid["release_year"].max())
     span         = newest_year - oldest_year
 
-
-def fmt_duration(minutes: float) -> str:
-    m = int(minutes)
-    s = int(round((minutes - m) * 60))
-    return f"{m}:{s:02d}"
 
 
 MEDALS   = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
