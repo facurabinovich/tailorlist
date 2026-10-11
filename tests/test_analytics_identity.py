@@ -39,18 +39,15 @@ SID = "12345678-1234-4123-8123-123456789abc"
 
 
 @pytest.fixture(autouse=True)
-def _no_db_no_dev_mode(monkeypatch):
+def _no_db_no_dev_mode(monkeypatch, patch_get_engine):
     """Analytics fire only outside DEV_MODE; the DB must stay unreachable."""
     monkeypatch.setenv("DEV_MODE", "0")
 
     def _refuse(*_a, **_kw):
         raise RuntimeError("DB access is not allowed in tests")
 
-    monkeypatch.setattr("db.connection.get_engine", _refuse)
-    # db.queries does `from db.connection import get_engine`, so it holds its own
-    # binding made at first import. Patch that one too, or the stub only works
-    # when this file happens to be the first to import db.queries.
-    monkeypatch.setattr("db.queries.get_engine", _refuse)
+    # Patches every db.* module that binds get_engine (see tests/conftest.py).
+    patch_get_engine(_refuse)
     yield
 
 

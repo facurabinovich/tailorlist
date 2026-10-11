@@ -34,16 +34,14 @@ FAKE_SESSION = {
 
 
 @pytest.fixture(autouse=True)
-def _no_db(monkeypatch):
+def _no_db(monkeypatch, patch_get_engine):
     monkeypatch.setenv("DEV_MODE", "0")
 
     def _refuse(*_a, **_kw):
         raise RuntimeError("DB access is not allowed in tests")
 
-    monkeypatch.setattr("db.connection.get_engine", _refuse)
-    # db.queries binds get_engine at import (`from db.connection import ...`); patch
-    # that binding too so the stub works whatever imported db.queries first.
-    monkeypatch.setattr("db.queries.get_engine", _refuse)
+    # Patches every db.* module that binds get_engine (see tests/conftest.py).
+    patch_get_engine(_refuse)
     yield
 
 

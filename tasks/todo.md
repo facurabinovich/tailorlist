@@ -81,7 +81,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
 
 ## Fase 2: capa de datos
 
-- [ ] **T11: Partir `db/queries.py`** · M
+- [x] **T11: Partir `db/queries.py`** · M
   - Acceptance: `db/tracks.py`, `db/progress.py`, `db/sessions.py` y `db/analytics.py` con el código movido tal cual. `db/queries.py` solo re-exporta. Ninguna página cambia todavía.
   - Verify: suite (los patches `db.queries.*` siguen funcionando porque las páginas todavía importan de ahí).
   - Ojo: `db.queries` liga `get_engine` por nombre al importarse. Los tests parchean `db.queries.get_engine` además de `db.connection.get_engine`. Al partir el módulo, cada submódulo que importe `get_engine` necesita su propio patch, o un fixture compartido en `conftest`. Verificar la suite en orden invertido (`$(ls tests/test_*.py | sort -r)`).

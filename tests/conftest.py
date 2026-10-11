@@ -115,3 +115,26 @@ def _raise_if_remote(address, *a, **k):
 
 
 _orig_create_connection = socket.create_connection
+
+
+@pytest.fixture
+def patch_get_engine(monkeypatch):
+    """Return ``patch(stub)``: replace ``get_engine`` everywhere it is bound.
+
+    ``from db.connection import get_engine`` gives every db.* module (and
+    db.queries, which re-exports it) its own binding, so patching only
+    ``db.connection.get_engine`` misses them. This imports every module in the
+    ``db`` package and patches each one that holds a ``get_engine`` name, so new
+    db modules are covered without touching the tests.
+    """
+    import importlib
+    import pkgutil
+    import db
+
+    def _patch(stub):
+        for info in pkgutil.iter_modules(db.__path__):
+            mod = importlib.import_module("db." + info.name)
+            if hasattr(mod, "get_engine"):
+                monkeypatch.setattr(mod, "get_engine", stub)
+
+    return _patch
