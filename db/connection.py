@@ -1,12 +1,9 @@
 import os
 
 import streamlit as st
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
-load_dotenv()
-
-_DEV_MODE = os.getenv("DEV_MODE", "1") == "1"
+from config import is_dev_mode  # importing config loads .env
 
 
 def _local_url() -> str:
@@ -43,5 +40,5 @@ def _production_url() -> str:
 
 @st.cache_resource
 def get_engine():
-    url = _local_url() if _DEV_MODE else _production_url()
+    url = _local_url() if is_dev_mode() else _production_url()
     return create_engine(url, echo=False)

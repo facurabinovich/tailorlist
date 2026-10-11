@@ -2,6 +2,21 @@
 # Shared constants — imported by pages and db modules
 # ---------------------------------------------------------------------------
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Single place where .env is loaded (repo root, regardless of CWD).
+# override=False on purpose: variables already set in the process win over .env.
+# monitoring.py sets os.environ["DEV_MODE"] = "0" before importing db.connection
+# (-> config); override=True would let the local .env (DEV_MODE=1) clobber it.
+load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
+
+
+def is_dev_mode() -> bool:
+    """True only when DEV_MODE=1. Read on every call; unset means production."""
+    return os.environ.get("DEV_MODE", "0") == "1"
+
 
 # 14 personal playlists (DEV_MODE=1)
 _DEV_PLAYLIST_LABELS = {
@@ -31,7 +46,7 @@ _DEMO_PLAYLIST_LABELS = {
 }
 
 PLAYLIST_LABELS = (
-    _DEV_PLAYLIST_LABELS if os.getenv("DEV_MODE", "1") == "1" else _DEMO_PLAYLIST_LABELS
+    _DEV_PLAYLIST_LABELS if is_dev_mode() else _DEMO_PLAYLIST_LABELS
 )
 
 # KMeans cluster labels (index → name)

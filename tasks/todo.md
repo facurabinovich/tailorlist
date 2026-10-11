@@ -40,7 +40,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
 
 ## Fase 1: cimientos
 
-- [ ] **T5: `config.py`: entorno cargado una vez y `is_dev_mode()`** · M
+- [x] **T5: `config.py`: entorno cargado una vez y `is_dev_mode()`** · M
   - Acceptance: el `.env` se carga en un solo lugar (`config.py`), con la misma semántica que hoy (`override=True`, como `spotify_client.py:19`). Se eliminan los `load_dotenv()` repartidos en `db/connection.py`, `utils.py`, `spotify_client.py` y `0_home.py`; `pipeline/`, `scripts/` y `monitoring.py` quedan como están (fuera de alcance). `is_dev_mode()` lee el entorno en cada llamada, con default `"0"`, y lo usan `config.py`, `db/connection.py` (hoy congela `_DEV_MODE` al importarse), `spotify_client.py` y `utils.py`. Los tests que hacen `import spotify_client` para forzar el orden de `load_dotenv` siguen funcionando, o pasan a depender del `conftest`.
   - Verify: suite; test unitario de `is_dev_mode` (sin definir, `"0"`, `"1"`); app real arranca en `DEV_MODE=1` contra el MySQL local.
   - Files: `config.py`, `db/connection.py`, `spotify_client.py`, `utils.py`, `tests/test_config.py` (más una línea en `0_home.py`).

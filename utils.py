@@ -2,6 +2,7 @@ import re as _re
 import uuid as _uuid
 import streamlit as st
 
+from config import is_dev_mode
 import base64 as _base64
 
 _UUID_RE = _re.compile(
@@ -329,7 +330,7 @@ def inject_sidebar_nav(page: str = "Home"):
         st.query_params["sid"] = _sid
 
     # ── Analytics tracking ────────────────────────────────────────────────────────
-    if os.getenv("DEV_MODE") != "1":
+    if not is_dev_mode():
         try:
             from db.queries import track_event
             _session    = st.session_state.get("uc_session_id", "fc_user")
@@ -391,9 +392,7 @@ def inject_sidebar_nav(page: str = "Home"):
         )
 
         import os
-        from dotenv import load_dotenv
-        load_dotenv()
-        if os.getenv("DEV_MODE", "0") == "1":
+        if is_dev_mode():
             import streamlit as st
             from spotify_client import get_spotify_oauth_client
             st.sidebar.markdown("---")

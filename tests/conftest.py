@@ -9,10 +9,10 @@ import socket
 
 import pytest
 
-# spotify_client does load_dotenv(.env, override=True) at import time. Import it
-# FIRST so that happens now, then pin the env, so later monkeypatch.setenv wins
-# and results never depend on the developer's local .env.
-import spotify_client  # noqa: F401
+# config loads .env at import time. Import it FIRST so that happens now, then
+# pin the env, so later monkeypatch.setenv wins and results never depend on the
+# developer's local .env.
+import config  # noqa: F401
 
 import os
 

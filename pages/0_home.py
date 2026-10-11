@@ -57,8 +57,7 @@ if (_sid
         mark_uc_session_unavailable()
 
 # ── DEV MODE — must run before inject_sidebar_nav() ─────────────────────────
-from dotenv import load_dotenv
-load_dotenv()
+import config  # noqa: F401  (loads .env)
 import json
 if (os.getenv("DEV_MODE") == "1"
         and not st.session_state.get("uc_active")
@@ -606,8 +605,6 @@ document.cookie = 'tailorlist_sid=;path=/;max-age=0';
 
             # DEV — remove before deploy
             import json, os
-            from dotenv import load_dotenv
-            load_dotenv()
             if os.getenv("DEV_MODE") == "1":
                 if st.button("💾 Save as dev collection", type="secondary", key="dev_save"):
                     data = {

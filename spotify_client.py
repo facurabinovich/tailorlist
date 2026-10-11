@@ -10,13 +10,12 @@ from datetime import datetime
 from pathlib import Path
 
 import spotipy
-from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
 
-# Load .env from the directory where this file lives (project root),
-# regardless of where Streamlit is invoked from.
+import config  # noqa: F401  (loads .env before credentials are read)
+from config import is_dev_mode
+
 _HERE = Path(__file__).resolve().parent
-load_dotenv(_HERE / ".env", override=True)
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -64,7 +63,7 @@ def get_spotify_oauth_client() -> spotipy.Spotify | None:
     Only used in DEV_MODE=1. Returns None if auth fails.
     """
     import os
-    if os.getenv("DEV_MODE", "0") != "1":
+    if not is_dev_mode():
         return None
     try:
         client_id, client_secret = _get_credentials()
