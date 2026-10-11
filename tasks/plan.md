@@ -101,5 +101,10 @@ hacer la revisión final.
 - **H6 (bug):** `fmt_duration` en Overview, Playlist Detail y Comparison trunca
   minutos y redondea segundos por separado: `3.999` → "3:60". Artist/Album usa
   `divmod` sobre segundos totales y da "4:00". **RESUELTO:** unificado en el algoritmo `divmod`.
+- **H8:** `app_state.collection.get_cluster_data()` y
+  `get_audio_features_by_playlist()` no tienen ningún llamador (verificado con
+  grep). Además, `get_cluster_data()` hace `st.cache_data.clear()` en cada
+  llamada FC: si una tool lo usara en loop, borraría todas las cachés. Propuesta:
+  eliminarlas en T28, con aprobación de Facu (es código muerto, no funcionalidad).
 - **H7:** `kpi_card` tiene 5 diseños distintos, no 5 copias. Su unificación se
   difiere al revamp visual.

@@ -273,6 +273,13 @@ F0 del pivot.
   de lo que piden las tareas.
 - **El criterio de ~500 líneas por página** no aplica a My Clusters ni a
   Cluster Results.
+- **Las tools no leen la sesión.** Lo que va a `core/` recibe DataFrames y
+  parámetros explícitos. `app_state/` es solo el wrapper que lee
+  `st.session_state` y llama a `core/` (como `yc_tracks_frame`). El grafo del
+  agente puede correr fuera del hilo del script de Streamlit.
+- **Regla para el futuro paquete `agent/` (F1):** `agent/ → core, db, config`.
+  Nunca `app_state` ni `ui`. Los datos de la sesión (colección YC) se le pasan
+  explícitos.
 
 ## Contexto operativo
 

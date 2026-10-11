@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0}</style>
+<!-- Mockups del pivot a agente. Ver agent-pivot.md. Abrir directo en el navegador. -->
+<title>TailorList Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~72ch) for the argument; mockups break out wider, framed as the real dark app. */
+:root{
+  --bg:#F6F7F5; --surface:#FFFFFF; --fg:#151A17; --muted:#5B6660; --line:#DDE3DF;
+  --accent:#138A3E; --accent-soft:#E2F3E8; --warn:#A35C00; --warn-soft:#FBEFD9;
+  --f-display:"Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  /* app mockup tokens: the real TailorList look, fixed dark in both themes */
+  --app-bg:#121212; --app-card:#181818; --app-raise:#282828; --app-line:#333333;
+  --app-fg:#FFFFFF; --app-muted:#B3B3B3; --app-green:#1DB954; --app-coral:#E8534A;
+  --app-blue:#4A90D9; --app-amber:#F5A623; --app-purple:#B97FE8;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E110F; --surface:#161A18; --fg:#E9EEEB; --muted:#9AA6A0; --line:#28302C;
+  --accent:#3FD27A; --accent-soft:#163323; --warn:#F2B35B; --warn-soft:#33260F; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0E110F; --surface:#161A18; --fg:#E9EEEB; --muted:#9AA6A0; --line:#28302C;
+  --accent:#3FD27A; --accent-soft:#163323; --warn:#F2B35B; --warn-soft:#33260F; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:48px 96px;display:flex;flex-direction:column;gap:64px}
+.col{max-width:72ch}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(2.2rem,5vw,3.4rem);font-weight:800;letter-spacing:-.02em}
+h2{font-size:1.65rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.1rem;font-weight:700}
+p{margin:0}
+.eyebrow{font-family:var(--f-mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.lede{font-size:1.15rem;color:var(--fg)}
+.muted{color:var(--muted)}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+code{background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+a{color:var(--accent)}
+
+/* verdict */
+.verdict{border-left:3px solid var(--accent);padding:4px 0 4px 18px;display:flex;flex-direction:column;gap:10px}
+.verdict ul{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:6px}
+
+/* proposals */
+.props{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.prop{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:12px}
+.prop.rec{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.prop .tag{align-self:flex-start;font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:99px;background:var(--line);color:var(--muted)}
+.prop.rec .tag{background:var(--accent-soft);color:var(--accent)}
+.prop .ex{font-family:var(--f-mono);font-size:.82rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:10px}
+.prop dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.88rem}
+.prop dt{color:var(--muted)}
+.prop dd{margin:0}
+
+/* tabs */
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs button{font:inherit;font-size:.9rem;font-weight:500;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.caption{font-size:.92rem;color:var(--muted);max-width:80ch}
+
+/* ===== app mockup ===== */
+.app{background:var(--app-bg);color:var(--app-fg);border-radius:12px;border:1px solid var(--app-line);overflow:hidden;font-family:var(--f-body);font-size:14px;line-height:1.5;color-scheme:dark}
+.app-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--app-line);background:#0B0B0B}
+.dots{display:flex;gap:6px}.dots i{width:10px;height:10px;border-radius:50%;background:var(--app-raise);display:block}
+.brand{font-family:var(--f-display);font-weight:800;font-size:15px;display:flex;align-items:center;gap:8px}
+.brand b{width:18px;height:18px;border-radius:50%;background:var(--app-green);display:inline-block}
+.app-bar .sp{flex:1}
+.pill{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--app-raise);color:var(--app-muted)}
+.pill.g{background:rgba(29,185,84,.15);color:var(--app-green)}
+.app-body{display:grid;grid-template-columns:210px minmax(0,1fr);min-height:560px}
+.side{border-right:1px solid var(--app-line);padding:14px 10px;display:flex;flex-direction:column;gap:4px;background:#0F0F0F}
+.side .h{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7c7c7c;padding:10px 8px 4px}
+.side a{color:var(--app-muted);text-decoration:none;padding:7px 10px;border-radius:6px;font-size:13px;display:flex;justify-content:space-between;gap:8px}
+.side a.on{background:var(--app-raise);color:var(--app-fg)}
+.side a small{color:#7c7c7c}
+.main{padding:20px 24px;display:flex;flex-direction:column;gap:16px;min-width:0}
+
+.msg{display:flex;gap:10px;align-items:flex-start;max-width:760px}
+.msg.user{align-self:flex-end}
+.msg.user .bubble{background:var(--app-raise);border-radius:14px 14px 4px 14px;padding:10px 14px}
+.avatar{width:26px;height:26px;border-radius:50%;background:var(--app-green);flex:none;display:grid;place-items:center;color:#000;font-weight:800;font-size:12px;font-family:var(--f-display)}
+.agent-col{display:flex;flex-direction:column;gap:10px;min-width:0;flex:1}
+.steps{display:flex;flex-direction:column;gap:4px;font-family:var(--f-mono);font-size:12px;color:var(--app-muted);background:var(--app-card);border:1px solid var(--app-line);border-radius:8px;padding:10px 12px}
+.steps div{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.steps .ok{color:var(--app-green)}
+.steps .fn{color:var(--app-fg)}
+.card{background:var(--app-card);border:1px solid var(--app-line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.card-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.card-h h4{margin:0;font-family:var(--f-display);font-size:18px}
+.kpis{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--app-muted)}
+.kpis b{display:block;color:var(--app-fg);font-size:16px;font-variant-numeric:tabular-nums}
+.tracks{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,.8fr) 44px 46px;gap:6px 10px;font-size:13px;align-items:center;font-variant-numeric:tabular-nums}
+.tracks .hd{font-size:11px;color:#7c7c7c;text-transform:uppercase;letter-spacing:.06em}
+.tracks .n{color:#7c7c7c;text-align:right}
+.tracks .a{color:var(--app-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tracks .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tracks .r{text-align:right;color:var(--app-muted)}
+.bar{height:6px;border-radius:3px;background:var(--app-raise);position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--app-green);border-radius:3px}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:inherit;font-size:13px;font-weight:600;padding:8px 14px;border-radius:99px;border:1px solid var(--app-line);background:transparent;color:var(--app-fg);cursor:default}
+.btn.p{background:var(--app-green);border-color:var(--app-green);color:#000}
+.composer{margin-top:auto;display:flex;gap:8px;align-items:center;background:var(--app-card);border:1px solid var(--app-line);border-radius:12px;padding:10px 12px}
+.composer span{flex:1;color:#7c7c7c}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid var(--app-line);color:var(--app-muted)}
+.interrupt{border:1px solid var(--app-amber);background:rgba(245,166,35,.06)}
+.interrupt .flag{font-family:var(--f-mono);font-size:11px;color:var(--app-amber);letter-spacing:.06em;text-transform:uppercase}
+.assign{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 90px 64px;gap:8px 12px;font-size:13px;align-items:center}
+.assign .hd{font-size:11px;color:#7c7c7c;text-transform:uppercase;letter-spacing:.06em}
+.fam{display:inline-flex;align-items:center;gap:6px}
+.fam i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.conf{font-family:var(--f-mono);font-size:12px}
+.conf.lo{color:var(--app-amber)}
+.x{color:var(--app-muted);font-size:12px}
+
+/* dashboard + side panel */
+.dash{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:560px}
+.dash .main{border-right:1px solid var(--app-line)}
+.panel{padding:16px;display:flex;flex-direction:column;gap:12px;background:#0F0F0F;min-width:0}
+.ctx{font-family:var(--f-mono);font-size:11px;color:var(--app-green);background:rgba(29,185,84,.1);border-radius:6px;padding:6px 8px}
+.kgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.k{background:var(--app-card);border:1px solid var(--app-line);border-radius:8px;padding:12px}
+.k small{color:var(--app-muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.k b{display:block;font-size:22px;font-family:var(--f-display);font-variant-numeric:tabular-nums}
+.chart svg{width:100%;height:auto;display:block}
+.small-msg{font-size:13px;display:flex;flex-direction:column;gap:8px}
+.small-msg .u{background:var(--app-raise);border-radius:10px;padding:8px 10px;align-self:flex-end;max-width:92%}
+.small-msg .a{color:#e8e8e8}
+.hl{outline:2px solid var(--app-green);outline-offset:3px;border-radius:4px}
+
+/* graph + tables */
+.graph{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.92rem;min-width:640px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+tr:last-child td{border-bottom:0}
+td .mono{white-space:nowrap}
+.risks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.risk{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.risk .lvl{font-family:var(--f-mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--warn);background:var(--warn-soft);align-self:flex-start;padding:2px 8px;border-radius:99px}
+.phases{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0;}
+.phases li{display:grid;grid-template-columns:48px minmax(0,1fr);gap:14px;padding:16px 0;border-top:1px solid var(--line)}
+.phases .f{font-family:var(--f-mono);font-weight:500;color:var(--accent);padding-top:2px}
+
+@media (max-width:860px){
+  .props,.risks{grid-template-columns:1fr}
+  .app-body,.dash{grid-template-columns:1fr}
+  .side{display:none}
+  .dash .main{border-right:0;border-bottom:1px solid var(--app-line)}
+  .kgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tracks{grid-template-columns:22px minmax(0,1fr) 44px 46px}
+  .tracks .a{display:none}
+  .assign{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 54px}
+  .assign .x{display:none}
+  .main{padding:16px}
+}
+@media (prefers-reduced-motion:no-preference){.tabs button{transition:background .15s,color .15s}}
+</style>
+
+<div class="wrap">
+
+<header class="stack col">
+  <span class="eyebrow">Propuesta · 11 oct 2026 · rama refactor/architecture</span>
+  <h1>TailorList Agent</h1>
+  <p class="lede">Pasar de "un dashboard de playlists con un clustering muy laborioso" a "un curador al que le pedís lo que querés escuchar". Los dashboards se quedan, pero como vistas que el agente abre y explica.</p>
+</header>
+
+<section class="verdict col">
+  <h2>Mi opinión</h2>
+  <p>Sí, tiene sentido, y el refactor en curso es justamente lo que lo hace barato. Si <code>core/</code> queda como funciones puras DataFrame→DataFrame sin Streamlit, cada una se convierte en una tool casi gratis.</p>
+  <ul>
+    <li><strong>LangGraph encaja</strong>, pero solo para el flujo de curaduría: tiene estado, loops ("cambiá esto"), una aprobación humana antes de exportar (<code>interrupt</code>) y sesiones que hay que poder retomar (checkpointer). Eso es exactamente lo que hoy te cuesta en <code>6_My_Clusters.py</code> con sids, cookies y progreso en MySQL.</li>
+    <li><strong>Para preguntas analíticas no hace falta un grafo.</strong> Un loop de tool use alcanza. No armaría una arquitectura multi-agente con supervisor: es complejidad sin ganancia para este tamaño.</li>
+    <li><strong>El dolor real que resuelve</strong> es la asignación manual de clusters y los ~39 temas sin familia de género. Eso es trabajo de LLM: clasificar con criterio y pedir confirmación.</li>
+  </ul>
+</section>
+
+<section class="stack">
+  <div class="stack col">
+    <span class="eyebrow">Tres enfoques</span>
+    <h2>Propuestas</h2>
+  </div>
+  <div class="props">
+    <article class="prop">
+      <span class="tag">A · Analista</span>
+      <h3>Copiloto sobre los dashboards</h3>
+      <p>La app queda igual. Se agrega un panel lateral "preguntale a esta vista" que conoce la página abierta y responde con datos.</p>
+      <dl><dt>Esfuerzo</dt><dd>Bajo</dd><dt>Grafo</dt><dd>No hace falta</dd><dt>Agente</dt><dd>Accesorio</dd></dl>
+      <p class="ex">"¿Por qué Mighty Nineties y Class of '03 se parecen tanto?"</p>
+    </article>
+    <article class="prop">
+      <span class="tag">B · Curador</span>
+      <h3>Agente que arma playlists</h3>
+      <p>Pedís en lenguaje natural, el agente filtra, agrupa, ordena por curva de energía, te muestra la propuesta y exporta cuando aprobás.</p>
+      <dl><dt>Esfuerzo</dt><dd>Medio</dd><dt>Grafo</dt><dd>Sí: estado + interrupt</dd><dt>Agente</dt><dd>Protagonista</dd></dl>
+      <p class="ex">"Armame 45 min para correr con lo que tengo, sin baladas."</p>
+    </article>
+    <article class="prop rec">
+      <span class="tag">C · Recomendada</span>
+      <h3>Agente al centro, dashboards como vistas</h3>
+      <p>B como home. A como panel en cada dashboard. El agente puede responder con un gráfico inline o abrir la vista completa ya filtrada.</p>
+      <dl><dt>Esfuerzo</dt><dd>Medio, por fases</dd><dt>Grafo</dt><dd>Router + 2 subgrafos</dd><dt>Agente</dt><dd>Estrella, sin tirar nada</dd></dl>
+      <p class="ex">"Mostrame qué tan bailable es cada playlist" → abre Audio DNA resaltando danceability.</p>
+    </article>
+  </div>
+</section>
+
+<section class="stack">
+  <div class="stack col">
+    <span class="eyebrow">Propuesta C en tres pantallas</span>
+    <h2>Mockups</h2>
+    <p class="muted">Usan la estética actual de la app. Los temas y números son ejemplos ilustrativos sobre la colección demo, no datos reales.</p>
+  </div>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="t1" aria-selected="true" aria-controls="m1">1 · Pedir una playlist</button>
+    <button role="tab" id="t2" aria-selected="false" aria-controls="m2">2 · Aprobación humana</button>
+    <button role="tab" id="t3" aria-selected="false" aria-controls="m3">3 · Dashboard + agente</button>
+  </div>
+
+  <!-- M1 -->
+  <div id="m1" role="tabpanel" aria-labelledby="t1" class="stack">
+    <p class="caption">La home deja de ser un selector de modo y pasa a ser una conversación. Los pasos del agente se ven como llamadas a tools colapsables, así el usuario entiende de dónde salen los números.</p>
+    <div class="app">
+      <div class="app-bar"><div class="dots"><i></i><i></i><i></i></div><span class="brand"><b></b>TailorList</span><span class="sp"></span><span class="pill g">Tu colección · 5 playlists · 450 temas</span></div>
+      <div class="app-body">
+        <nav class="side">
+          <span class="h">Conversaciones</span>
+          <a class="on" href="#m1">Run Club 45' <small>ahora</small></a>
+          <a href="#m1">Ordenar OG Rap <small>ayer</small></a>
+          <a href="#m1">Sin género (39) <small>3 oct</small></a>
+          <span class="h">Vistas</span>
+          <a href="#m1">Overview</a><a href="#m1">Audio DNA</a><a href="#m1">Comparación</a><a href="#m1">Mis clusters</a>
+        </nav>
+        <div class="main">
+          <div class="msg user"><div class="bubble">Armame una playlist para correr de unos 45 minutos con lo que tengo. Nada de baladas, que arranque tranqui y suba.</div></div>
+          <div class="msg">
+            <span class="avatar">T</span>
+            <div class="agent-col">
+              <div class="steps">
+                <div><span class="ok">✓</span><span class="fn">load_collection()</span>450 temas, 364 con audio features</div>
+                <div><span class="ok">✓</span><span class="fn">filter_tracks(energy≥0.65, tempo 140–180, acousticness≤0.4)</span>61 temas</div>
+                <div><span class="ok">✓</span><span class="fn">sequence_by_curve(shape="ramp_up", target_min=45)</span>13 temas · 44:12</div>
+              </div>
+              <p>Te armé <strong>Run Club 45'</strong>. Dejé afuera los temas de Early Soft Rock porque casi ninguno pasa de 0.5 de energía. Los 86 temas sin audio features no entraron, así que puede faltar algo que te guste.</p>
+              <div class="card">
+                <div class="card-h">
+                  <h4>Run Club 45'</h4>
+                  <div class="kpis"><span><b>13</b>temas</span><span><b>44:12</b>duración</span><span><b>162</b>BPM medio</span><span><b>0.58→0.91</b>energía</span></div>
+                </div>
+                <div class="chart" aria-label="Curva de energía por tema, sube de 0.58 a 0.91">
+                  <svg viewBox="0 0 600 70" role="img">
+                    <defs><linearGradient id="g1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#1DB954" stop-opacity=".35"/><stop offset="1" stop-color="#1DB954" stop-opacity="0"/></linearGradient></defs>
+                    <line x1="0" x2="600" y1="10" y2="10" stroke="#333333" stroke-dasharray="3 4"/><line x1="0" x2="600" y1="60" y2="60" stroke="#333333"/>
+                    <path d="M10 44 L56 41 L102 40 L148 36 L194 33 L240 30 L286 28 L332 24 L378 22 L424 19 L470 17 L516 14 L562 12 L562 60 L10 60 Z" fill="url(#g1)"/>
+                    <path d="M10 44 L56 41 L102 40 L148 36 L194 33 L240 30 L286 28 L332 24 L378 22 L424 19 L470 17 L516 14 L562 12" fill="none" stroke="#1DB954" stroke-width="2"/>
+                    <circle cx="562" cy="12" r="4" fill="#1DB954"/>
+                    <text x="570" y="15" fill="#B3B3B3" font-size="11" font-family="IBM Plex Mono, monospace">.91</text>
+                    <text x="10" y="58" fill="#7c7c7c" font-size="10" font-family="IBM Plex Mono, monospace" dy="-4" dx="2">.58</text>
+                  </svg>
+                </div>
+                <div class="tracks">
+                  <span class="hd n">#</span><span class="hd">Tema</span><span class="hd">Playlist</span><span class="hd r">BPM</span><span class="hd">Energía</span>
+                  <span class="n">1</span><span class="t">Hey Ya!</span><span class="a">Class of '03</span><span class="r">159</span><span class="bar"><i style="width:58%"></i></span>
+                  <span class="n">2</span><span class="t">Mr. Brightside</span><span class="a">Class of '03</span><span class="r">148</span><span class="bar"><i style="width:63%"></i></span>
+                  <span class="n">3</span><span class="t">Song 2</span><span class="a">Mighty Nineties</span><span class="r">130</span><span class="bar"><i style="width:66%"></i></span>
+                  <span class="n">…</span><span class="t muted">9 más</span><span class="a"></span><span class="r"></span><span></span>
+                  <span class="n">13</span><span class="t">Ruff Ryders' Anthem</span><span class="a">OG Rap</span><span class="r">186</span><span class="bar"><i style="width:91%"></i></span>
+                </div>
+                <div class="btns"><span class="btn p">Exportar a Spotify</span><span class="btn">Ver en Audio DNA</span><span class="btn">Guardar como cluster</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="composer"><span>Pedí cambios: "sacá el rap", "que dure 30 min"…</span><div class="chips"><span class="chip">Más corta</span><span class="chip">Sin repetir artistas</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- M2 -->
+  <div id="m2" role="tabpanel" aria-labelledby="t2" class="stack" hidden>
+    <p class="caption">Esto reemplaza el flujo manual de My Clusters. El grafo se pausa con <code>interrupt()</code>, el estado queda en el checkpointer y el usuario puede cerrar la pestaña y volver otro día al mismo punto. Ese es el problema de restaurar la sesión YC, resuelto por diseño.</p>
+    <div class="app">
+      <div class="app-bar"><div class="dots"><i></i><i></i><i></i></div><span class="brand"><b></b>TailorList</span><span class="sp"></span><span class="pill">Hilo pausado · esperando tu revisión</span></div>
+      <div class="app-body">
+        <nav class="side">
+          <span class="h">Conversaciones</span>
+          <a href="#m2">Run Club 45' <small>ahora</small></a>
+          <a href="#m2">Ordenar OG Rap <small>ayer</small></a>
+          <a class="on" href="#m2">Sin género (39) <small>3 oct</small></a>
+          <span class="h">Vistas</span>
+          <a href="#m2">Overview</a><a href="#m2">Audio DNA</a><a href="#m2">Comparación</a><a href="#m2">Mis clusters</a>
+        </nav>
+        <div class="main">
+          <div class="msg user"><div class="bubble">Separame la colección por familia de género. Lo que no encaje, decidilo vos pero mostrame antes.</div></div>
+          <div class="msg">
+            <span class="avatar">T</span>
+            <div class="agent-col">
+              <div class="steps">
+                <div><span class="ok">✓</span><span class="fn">group_by_family(exact_tokens=True)</span>411 asignados · 39 sin familia</div>
+                <div><span class="ok">✓</span><span class="fn">suggest_families(unmatched=39)</span>usa artista, géneros crudos, década y audio features</div>
+              </div>
+              <div class="card interrupt">
+                <span class="flag">Necesito tu OK antes de seguir</span>
+                <div class="card-h"><h4>39 temas sin familia</h4><div class="kpis"><span><b>31</b>confianza alta</span><span><b>8</b>dudosos</span></div></div>
+                <div class="assign">
+                  <span class="hd">Tema · artista</span><span class="hd">Propuesta</span><span class="hd">Confianza</span><span class="hd x">Por qué</span>
+                  <span>Sabotage · Beastie Boys</span><span class="fam"><i style="background:#E8534A"></i>Rock</span><span class="conf">0.92</span><span class="x">géneros "rap rock"</span>
+                  <span>Doo Wop · Lauryn Hill</span><span class="fam"><i style="background:#4A90D9"></i>Hip-Hop</span><span class="conf">0.88</span><span class="x">neo soul → R&amp;B</span>
+                  <span>Gangsta's Paradise · Coolio</span><span class="fam"><i style="background:#4A90D9"></i>Hip-Hop</span><span class="conf">0.95</span><span class="x">artista</span>
+                  <span>Smooth · Santana</span><span class="fam"><i style="background:#F5A623"></i>Latin</span><span class="conf lo">0.54</span><span class="x">¿Rock o Latin?</span>
+                  <span>Torn · Natalie Imbruglia</span><span class="fam"><i style="background:#B97FE8"></i>Pop</span><span class="conf lo">0.61</span><span class="x">sin géneros</span>
+                </div>
+                <div class="btns"><span class="btn p">Aprobar los 31 seguros</span><span class="btn">Revisar los 8 dudosos</span><span class="btn">Dejarlos sin asignar</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="composer"><span>"Santana va a Rock", "todo lo de los 70 a Folk"…</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- M3 -->
+  <div id="m3" role="tabpanel" aria-labelledby="t3" class="stack" hidden>
+    <p class="caption">Los dashboards actuales siguen, con un panel del agente que recibe la vista abierta como contexto. El agente puede resaltar partes del gráfico y proponer el próximo paso en la conversación principal.</p>
+    <div class="app">
+      <div class="app-bar"><div class="dots"><i></i><i></i><i></i></div><span class="brand"><b></b>TailorList · Audio DNA</span><span class="sp"></span><span class="pill g">5 playlists</span></div>
+      <div class="dash">
+        <div class="main">
+          <div class="kgrid">
+            <div class="k"><small>Energía</small><b>0.66</b></div>
+            <div class="k"><small>Bailabilidad</small><b>0.62</b></div>
+            <div class="k"><small>Valencia</small><b>0.55</b></div>
+            <div class="k"><small>Tempo</small><b>118</b></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h4>Bailabilidad media por playlist</h4><span class="pill">Resaltado por el agente</span></div>
+            <div class="chart">
+              <svg viewBox="0 0 560 200" role="img" aria-label="Barras de bailabilidad: OG Rap 0.78, Class of '03 0.64, Mighty Nineties 0.61, The 52nd Street Radio 0.57, Early Soft Rock 0.49">
+                <g font-family="IBM Plex Sans, sans-serif" font-size="12" fill="#B3B3B3">
+                  <text x="0" y="24">OG Rap</text><text x="0" y="62">Class of '03</text><text x="0" y="100">Mighty Nineties</text><text x="0" y="138">52nd Street Radio</text><text x="0" y="176">Early Soft Rock</text>
+                </g>
+                <g>
+                                    <rect x="130" y="10" width="312" height="22" rx="3" fill="#1DB954"/>
+                  <rect x="130" y="48" width="256" height="22" rx="3" fill="#4A4A4A"/>
+                  <rect x="130" y="86" width="244" height="22" rx="3" fill="#4A4A4A"/>
+                  <rect x="130" y="124" width="228" height="22" rx="3" fill="#4A4A4A"/>
+                  <rect x="130" y="162" width="196" height="22" rx="3" fill="#4A4A4A"/>
+                </g>
+                <g font-family="IBM Plex Mono, monospace" font-size="12" fill="#FFFFFF">
+                  <text x="450" y="26">0.78</text><text x="394" y="64">0.64</text><text x="382" y="102">0.61</text><text x="366" y="140">0.57</text><text x="334" y="178">0.49</text>
+                </g>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <aside class="panel">
+          <div class="ctx">contexto: audio_dna · 5 playlists · 364 temas con features</div>
+          <div class="small-msg">
+            <div class="u">¿Cuál es la más bailable y por qué?</div>
+            <div class="a">OG Rap, con 0.78. La empujan los tempos medios (~95 BPM) y el ritmo marcado. Early Soft Rock es la menos bailable (0.49) aunque no la más lenta: tiene mucha acústica.</div>
+            <div class="a muted" style="font-size:12px">Basado en 72 de 80 temas de OG Rap; 8 sin audio features.</div>
+          </div>
+          <div class="btns"><span class="btn">Armar una playlist bailable</span><span class="btn">Comparar con Class of '03</span></div>
+          <div class="composer" style="margin-top:auto"><span>Preguntá sobre esta vista…</span></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="stack">
+  <div class="stack col">
+    <span class="eyebrow">LangGraph</span>
+    <h2>El grafo</h2>
+    <p>Un router barato decide si es pregunta o pedido de curaduría. El subgrafo analista es un loop de tools. El curador es donde LangGraph se gana el lugar: estado tipado (filtros, candidatos, propuesta), el loop de ajustes y la pausa antes de cualquier efecto externo.</p>
+  </div>
+  <div class="graph">
+<pre class="mermaid">
+flowchart LR
+  U([Usuario]) --> R{router}
+  R -->|pregunta| A[analista<br/>loop de tools]
+  A --> V[[responde + gráfico<br/>o abre vista]]
+  R -->|curaduría| P[plan]
+  P --> L[load_collection]
+  L --> F[filter / group / cluster]
+  F --> S[sequence_by_curve]
+  S --> PR[propuesta]
+  PR --> I{{interrupt:<br/>revisión humana}}
+  I -->|cambiar| P
+  I -->|aprobar| E[export<br/>Spotify / CSV]
+  E --> M[(checkpointer<br/>hilo persistido)]
+</pre>
+  </div>
+</section>
+
+<section class="stack">
+  <div class="stack col">
+    <span class="eyebrow">Tu refactor es la capa de tools</span>
+    <h2>De <code>core/</code> a tools</h2>
+    <p>No hay que frenar el refactor. Al contrario: conviene sumarle una regla, que cada función de <code>core/</code> tenga firma tipada, docstring clara y devuelva algo serializable. Esas tres cosas son lo que el LLM ve.</p>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Tool</th><th>Sale de</th><th>Qué hace</th><th>Efecto externo</th></tr></thead>
+      <tbody>
+        <tr><td><span class="mono">load_collection</span></td><td><span class="mono">app_state/collection.py</span></td><td>Carga FC o YC y devuelve un resumen (no el DataFrame entero)</td><td>No</td></tr>
+        <tr><td><span class="mono">filter_tracks</span></td><td><span class="mono">core/tracks.py</span>, <span class="mono">core/genres.py</span></td><td>Filtra por rangos de audio features, década, familia</td><td>No</td></tr>
+        <tr><td><span class="mono">group_by_family</span></td><td><span class="mono">core/grouping.py</span></td><td>Matching exacto de tokens, devuelve asignados y sin familia</td><td>No</td></tr>
+        <tr><td><span class="mono">cluster_kmeans</span></td><td><span class="mono">core/clustering.py</span></td><td>KMeans + best_k + naming (el LLM puede renombrar)</td><td>No</td></tr>
+        <tr><td><span class="mono">compare_playlists</span></td><td>Comparación, Audio DNA</td><td>Overlap, duplicados exactos y versiones, perfiles medios</td><td>No</td></tr>
+        <tr><td><span class="mono">sequence_by_curve</span></td><td>nueva</td><td>Ordena por curva de energía/tempo y ajusta a duración</td><td>No</td></tr>
+        <tr><td><span class="mono">open_view</span></td><td><span class="mono">ui/nav.py</span></td><td>Abre un dashboard con filtros y resaltado</td><td>No</td></tr>
+        <tr><td><span class="mono">export_playlist</span></td><td><span class="mono">spotify/client.py</span>, <span class="mono">ui/export.py</span></td><td>Crea la playlist o el CSV para Spotlistr</td><td><strong>Sí, siempre detrás de interrupt</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="stack">
+  <div class="stack col">
+    <span class="eyebrow">Antes de comprometerse</span>
+    <h2>Riesgos</h2>
+  </div>
+  <div class="risks">
+    <div class="risk"><span class="lvl">Costo</span><h3>LLM en una demo pública</h3><p>Hoy la app está offline y era gratis de correr. Con agente, cada visitante cuesta tokens. Opciones: límite por visitor_id, modelo chico para router y analista, o "traé tu API key".</p></div>
+    <div class="risk"><span class="lvl">Datos</span><h3>Audio features de Spotify</h3><p>El endpoint está deprecado y dependés de tu fallback DB; 86 de 450 temas no tienen features. El agente tiene que decirlo en cada respuesta, como en los mockups, o va a inventar.</p></div>
+    <div class="risk"><span class="lvl">UI</span><h3>Streamlit y chat</h3><p><code>st.chat_message</code> y streaming andan para un MVP, pero el rerun completo y los interrupts con botones se pelean. Si el agente crece, el front de chat probablemente se va de Streamlit y los dashboards quedan.</p></div>
+    <div class="risk"><span class="lvl">Persistencia</span><h3>Checkpointer y MySQL</h3><p>LangGraph trae checkpointers oficiales para SQLite y Postgres, no para MySQL. Para empezar alcanza SQLite; si vuelve a la nube, Postgres es más simple que mantener uno propio.</p></div>
+  </div>
+</section>
+
+<section class="stack col">
+  <div class="stack">
+    <span class="eyebrow">Orden sugerido</span>
+    <h2>Fases</h2>
+  </div>
+  <ol class="phases">
+    <li><span class="f">F0</span><div><h3>Terminar el refactor</h3><p class="muted">Tal cual está planeado en SPEC.md, más la regla de firmas tipadas y retornos serializables en <code>core/</code>.</p></div></li>
+    <li><span class="f">F1</span><div><h3>Capa de tools + evals</h3><p class="muted">Un módulo <code>agent/tools.py</code> que envuelve <code>core/</code>, y 20–30 pedidos de ejemplo con resultado esperado sobre la colección demo. Sin UI todavía.</p></div></li>
+    <li><span class="f">F2</span><div><h3>Analista (propuesta A)</h3><p class="muted">Panel lateral en Audio DNA y Comparación. Loop de tools simple. Valida el costo real por conversación.</p></div></li>
+    <li><span class="f">F3</span><div><h3>Curador en LangGraph (propuesta B)</h3><p class="muted">Grafo con estado, <code>interrupt</code> antes de exportar y checkpointer. Primer caso: los temas sin familia (mockup 2).</p></div></li>
+    <li><span class="f">F4</span><div><h3>Home conversacional (propuesta C)</h3><p class="muted">El chat pasa a ser la entrada; los dashboards se abren desde el agente con <code>open_view</code>.</p></div></li>
+  </ol>
+</section>
+
+</div>
+
+<script>
+(function(){
+  var tabs=[].slice.call(document.querySelectorAll('[role="tab"]'));
+  function show(t){
+    tabs.forEach(function(b){
+      var on=b===t; b.setAttribute('aria-selected',on?'true':'false');
+      document.getElementById(b.getAttribute('aria-controls')).hidden=!on;
+    });
+  }
+  tabs.forEach(function(b,i){
+    b.addEventListener('click',function(){show(b)});
+    b.addEventListener('keydown',function(e){
+      if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+        var n=tabs[(i+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length]; n.focus(); show(n);
+      }
+    });
+  });
+})();
+</script>

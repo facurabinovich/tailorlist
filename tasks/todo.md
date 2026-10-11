@@ -132,6 +132,11 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Verify: suite; test del Refresh; app real: My Clusters → configurar → ver resultados en FC.
   - Files: `app_state/clusters.py`, `pages/6_My_Clusters.py`, `pages/_Cluster_Results.py`, tests.
 
+- [ ] **T18b: `core/export.py`: texto para Spotlistr** · S  *(pedido de la revisión del pivot)*
+  - Acceptance: el armado de las líneas "Artista - Tema" que hoy vive dentro de `ui/export.render_export_to_spotify` (~25 y ~150) pasa a una función pura y tipada (p. ej. `spotlistr_lines(tracks: pd.DataFrame) -> str`), con un test de caracterización de la salida exacta. `ui/export.py` la llama y la UI queda idéntica. La va a usar la tool `export_playlist`.
+  - Verify: suite; caracterización.
+  - Files: `core/export.py`, `ui/export.py`, `tests/test_core_export.py`.
+
 ### ✅ Checkpoint 3
 - [ ] Suite verde y test de arquitectura verde.
 - [ ] App real: los 3 modos de agrupación (KMeans auto/manual, por categoría, por género específico) en FC y YC, con asignación manual, guardado de progreso, reset y re-apertura.
