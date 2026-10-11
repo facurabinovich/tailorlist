@@ -61,12 +61,12 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Files: `ui/__init__.py`, `ui/theme.py`, `ui/nav.py`, `utils.py`, las páginas (cambio de una línea de import) y los tests (rutas de patch).
   - Nota: toca más de 5 archivos, pero es un cambio mecánico de imports. Se acepta así para no dejar la app a medio migrar.
 
-- [ ] **T9: `core/formatting.py`: `fmt_duration`** · S  *(replanificada: ver H6)*
+- [x] **T9: `core/formatting.py`: `fmt_duration`** · S  *(replanificada: ver H6)*
   - Acceptance: las 3 copias idénticas (Overview, Playlist Detail, Comparison) pasan a `core/formatting.fmt_duration`, movidas tal cual, incluido el bug H6. Artist/Album conserva su versión (que es distinta y correcta) hasta que se decida H6. Hay tests de caracterización de la salida actual, con el caso 3.999 → "3:60" documentado como comportamiento existente.
   - Verify: suite; `tests/test_formatting.py`.
   - Files: `core/__init__.py`, `core/formatting.py`, las 3 páginas y `tests/test_formatting.py`.
 
-- [ ] **T10: `ui/components.py`: helpers idénticos de clusters** · S  *(replanificada)*
+- [x] **T10: `ui/components.py`: helpers idénticos de clusters** · S  *(replanificada)*
   - Acceptance: `cluster_card`, `info_box` y `hr` (idénticos en My Clusters y Cluster Results) se definen una vez en `ui/components.py`, con un test de caracterización del HTML previo. `kpi_card`, `section_title`, `_verbose_description` y `_load_unmatched` DIFIEREN entre las dos páginas: no se unifican. Se reporta qué difiere y si parece un arreglo aplicado en una sola página. `_load_unmatched_fc` (idéntico) queda para T18 (`app_state/clusters.py`).
   - Verify: suite; `tests/test_ui_components.py`.
   - Files: `ui/components.py`, `pages/6_My_Clusters.py`, `pages/_Cluster_Results.py` y `tests/test_ui_components.py`.
@@ -117,6 +117,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Files: `core/genres.py`, `pages/6_My_Clusters.py`, `tests/test_my_clusters.py`, `tests/test_architecture.py`.
 
 - [ ] **T16: `core/clustering.py`** · M
+  - Nota de T10: `_verbose_description` es lógicamente idéntica en ambas páginas (difiere solo en comentarios); `section_title` y `_load_unmatched` son idénticas byte a byte. Se pueden deduplicar sin riesgo de lógica.
   - Acceptance: el núcleo de KMeans/PCA, `_make_names`, `_verbose_description` (deduplicada con Cluster Results), `compute_k_metrics` y `_best_k` quedan como funciones puras que reciben el df explícito. El wrapper cacheado preserva el keying actual (H1 se pregunta, no se cambia en silencio).
   - Verify: suite; los tests espejo de naming y clustering importan el código real; los resultados con un df fijo son idénticos (mismos labels con `random_state=42`).
   - Files: `core/clustering.py`, `app_state/clusters.py`, `pages/6_My_Clusters.py`, `pages/_Cluster_Results.py`, `tests/test_my_clusters.py`.
