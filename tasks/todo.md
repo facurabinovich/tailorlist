@@ -96,6 +96,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Files: `db/sessions.py`, `db/progress.py`, `pages/0_home.py`, `pages/_Enrich.py`, `pages/_Cluster_Results.py`.
 
 - [ ] **T14: Partir `spotify_client.py`** · M
+  - Acceptance (adicional): `ui/nav.py` deja de importar `db/`; el tracking de page views pasa por una función de `app_state`.
   - Acceptance: `spotify/client.py` sin Streamlit-UI, `ui/export.py` con `render_export_to_spotify`, y `log_export_event` en `db/analytics.py`. `spotify_client.py` re-exporta. Se migran los 9 patches `spotify_client.render_export_to_spotify`. Los `import spotify_client` que los tests usan para el orden de `load_dotenv` ya no hacen falta después de T5; se reemplazan o se quitan.
   - Verify: suite (`test_analytics_identity` incluido).
   - Files: `spotify/__init__.py`, `spotify/client.py`, `ui/export.py`, `db/analytics.py`, `spotify_client.py`, más las páginas que lo usan.

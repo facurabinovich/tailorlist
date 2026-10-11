@@ -92,7 +92,8 @@ Regla de dependencias (una sola dirección, sin ciclos):
 
 ```
 pages → ui, app_state, core
-ui → app_state (solo export.py, para analytics), config
+ui → app_state, config   (nunca db/ directo; excepción temporal: ui/nav.py llama a
+                          db.queries.track_event hasta que T14 mueva analytics a app_state)
 app_state → db, spotify, core
 db → config            (puede usar st.cache_data / st.cache_resource)
 spotify → config
