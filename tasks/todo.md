@@ -17,7 +17,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Verify: suite completa, 391/391.
   - Files: `tests/test_analytics_identity.py`, `tests/test_audio_dna.py`, `tests/test_my_clusters.py`.
 
-- [ ] **T2: `tests/conftest.py` con guardia de DB y entorno fijo** · S
+- [x] **T2: `tests/conftest.py` con guardia de DB y entorno fijo** · S
   - Acceptance: durante los tests, crear un engine real lanza un error con un mensaje claro, y lo mismo pasa con las llamadas HTTP salientes (`requests` y `spotipy`: ReccoBeats/Spotify), salvo que el test las mockee. Además, la suite deja de depender del `.env` local: hoy `spotify_client` hace `load_dotenv(override=True)` al importarse y los tests heredan `DEV_MODE=1` del `.env`. El `conftest` fija `DEV_MODE=1` explícitamente (el valor efectivo actual), después de que corra ese `load_dotenv`. La suite sigue verde; si aparece un test que pegaba a la DB o a la red, se registra y se arregla.
   - Verify: suite completa, más tests que confirman que las guardias disparan. Correr la suite con el `.env` renombrado temporalmente da el mismo resultado.
   - Files: `tests/conftest.py`.
@@ -27,7 +27,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Verify: `pytest tests/test_smoke_pages.py` en verde; `--durations=0` en 5 corridas, con la mediana por página guardada en `tasks/perf-baseline.md`.
   - Files: `tests/test_smoke_pages.py`, `tasks/perf-baseline.md`.
 
-- [ ] **T4: Línea base visual** · S
+- [x] **T4: Línea base visual** · S
   - Acceptance: app real (`DEV_MODE=1`, MySQL local) con capturas de cada página en FC, y en YC con `dev_collection.json` (Home lo carga solo en `DEV_MODE=1`, `0_home.py:63`). Se guardan fuera del repo (scratchpad) y se listan en `tasks/perf-baseline.md`.
   - Verify: capturas presentes para todas las páginas.
   - Files: `tasks/perf-baseline.md`.

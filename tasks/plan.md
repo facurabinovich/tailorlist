@@ -91,3 +91,6 @@ hacer la revisión final.
 - **H4:** `load_dotenv` se llama en 5 módulos de la app, uno con
   `override=True`. El `.env` local pisa variables del entorno, y el
   resultado depende del orden de importación. Se resuelve en T5.
+- **H5:** en YC, el banner de My Clusters dice "505 tracks", mientras que Home y Overview
+  dicen 499 (dev collection: 6 duplicados). Es una inconsistencia que ya existía
+  antes del refactor y se preserva tal cual.

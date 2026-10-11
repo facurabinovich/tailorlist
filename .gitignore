@@ -65,3 +65,6 @@ CLAUDE.md
 
 # Vendored agent skills (Claude Code plugin, not app code)
 agent-skills/
+
+# Refactor visual baseline (screenshots, large)
+tasks/baseline/
