@@ -806,15 +806,8 @@ for rank, row in cluster_sorted.iterrows():
                 _tids_reopen = set(cluster_track_ids)
                 st.session_state["done_tracks"] -= _tids_reopen
                 try:
-                    from db.queries import get_engine as _get_engine_ro2
-                    from sqlalchemy import text as _sqlt_ro2
-                    with _get_engine_ro2().begin() as _conn_ro2:
-                        _conn_ro2.execute(
-                            _sqlt_ro2("DELETE FROM user_cluster_progress "
-                                      "WHERE user_key = :uk AND status = 'done' "
-                                      "AND track_id IN :tids"),
-                            {"uk": user_key, "tids": tuple(_tids_reopen)},
-                        )
+                    from db.progress import delete_done_progress
+                    delete_done_progress(user_key, _tids_reopen)
                 except Exception:
                     pass
                 st.rerun()
@@ -1140,15 +1133,8 @@ def _render_unmatched_section():
             if _tids_to_reopen:
                 st.session_state["done_tracks"] -= _tids_to_reopen
                 try:
-                    from db.queries import get_engine as _get_engine_ro
-                    from sqlalchemy import text as _sqlt_ro
-                    with _get_engine_ro().begin() as _conn_ro:
-                        _conn_ro.execute(
-                            _sqlt_ro("DELETE FROM user_cluster_progress "
-                                     "WHERE user_key = :uk AND status = 'done' "
-                                     "AND track_id IN :tids"),
-                            {"uk": user_key, "tids": tuple(_tids_to_reopen)},
-                        )
+                    from db.progress import delete_done_progress
+                    delete_done_progress(user_key, _tids_to_reopen)
                 except Exception:
                     pass
                 st.session_state["_reopened_cluster_warning"] = _reopened_names
@@ -1296,14 +1282,8 @@ def _apply_keep_visible():
     if _to_restore:
         st.session_state["done_tracks"] -= _to_restore
         try:
-            from db.queries import get_engine
-            from sqlalchemy import text as _sqlt
-            with get_engine().begin() as _conn:
-                _conn.execute(
-                    _sqlt("DELETE FROM user_cluster_progress "
-                          "WHERE user_key = :uk AND track_id IN :tids"),
-                    {"uk": user_key, "tids": tuple(_to_restore)},
-                )
+            from db.progress import delete_progress_for_tracks
+            delete_progress_for_tracks(user_key, _to_restore)
         except Exception:
             pass
 

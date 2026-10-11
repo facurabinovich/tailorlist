@@ -92,7 +92,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Verify: suite; tests de `core/tracks.py` (formatos de fecha, IDs sintéticos, rename de columnas).
   - Files: `app_state/collection.py`, `core/tracks.py`, `db/tracks.py`, las páginas de datos y sus tests (si son más de 5, se parte por grupos de páginas).
 
-- [ ] **T13: Sacar el SQL de las páginas** · M
+- [x] **T13: Sacar el SQL de las páginas** · M
   - Acceptance: los 5 bloques de SQL inline (`0_home.py` ~626, `_Enrich.py` ~199, `_Cluster_Results.py` ~869, ~1203 y ~1359) pasan a ser funciones con nombre en `db/sessions.py` o `db/progress.py`, con la misma SQL, los mismos parámetros y el mismo manejo de errores. `grep -n "text(\|execute(" pages/` no da resultados.
   - Verify: suite; tests unitarios con un engine mockeado que verifican la SQL y los parámetros; corrida opcional con `DEV_MODE=0` y `DATABASE_URL` apuntando al MySQL local.
   - Files: `db/sessions.py`, `db/progress.py`, `pages/0_home.py`, `pages/_Enrich.py`, `pages/_Cluster_Results.py`.

@@ -197,8 +197,8 @@ if not to_enrich or cursor >= total:
     # Track enrichment completion
     if not is_dev_mode():
         try:
-            from db.queries import track_event, get_engine
-            from sqlalchemy import text
+            from db.queries import track_event
+            from db.analytics import backfill_enrichment_session
             _real_sid = st.session_state.get("uc_session_id")
             track_event(
                 event      = "enrichment_complete",
@@ -207,20 +207,12 @@ if not to_enrich or cursor >= total:
                 visitor_id = st.session_state.get("visitor_id"),
             )
             # Backfill the enrichment_start row with the real session_id
-            with get_engine().begin() as conn:
-                conn.execute(text("""
-                    UPDATE app_analytics
-                    SET session_id = :sid
-                    WHERE event = 'enrichment_start'
-                      AND session_id = :proxy
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                """), {
-                    "sid":   _real_sid,
-                    "proxy": str(hash(tuple(
-                        p["id"] for p in st.session_state.get("uc_playlists", [])
-                    )))
-                })
+            backfill_enrichment_session(
+                _real_sid,
+                str(hash(tuple(
+                    p["id"] for p in st.session_state.get("uc_playlists", [])
+                ))),
+            )
         except Exception:
             pass
 

@@ -622,18 +622,9 @@ document.cookie = 'tailorlist_sid=;path=/;max-age=0';
             if st.button("🗑️ Delete my session data", type="secondary",
                          key="uc_delete_session"):
                 if st.session_state.get("uc_session_id"):
-                    from db.queries import get_engine
-                    from sqlalchemy import text
+                    from db.sessions import delete_session_data
                     try:
-                        with get_engine().begin() as conn:
-                            conn.execute(
-                                text("DELETE FROM uc_sessions WHERE session_id = :sid"),
-                                {"sid": st.session_state["uc_session_id"]}
-                            )
-                            conn.execute(
-                                text("DELETE FROM user_cluster_progress WHERE user_key = :uk"),
-                                {"uk": st.session_state["uc_session_id"]}
-                            )
+                        delete_session_data(st.session_state["uc_session_id"])
                     except Exception:
                         pass
                 import streamlit.components.v1 as _components

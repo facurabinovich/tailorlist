@@ -77,3 +77,16 @@ def load_uc_session(session_id: str) -> dict | None:
         import logging
         logging.getLogger(__name__).warning("load_uc_session failed: %s", exc)
         return None
+
+
+def delete_session_data(session_id: str) -> None:
+    """Delete a YC session and its cluster progress in one transaction."""
+    with get_engine().begin() as conn:
+        conn.execute(
+            _text("DELETE FROM uc_sessions WHERE session_id = :sid"),
+            {"sid": session_id}
+        )
+        conn.execute(
+            _text("DELETE FROM user_cluster_progress WHERE user_key = :uk"),
+            {"uk": session_id}
+        )

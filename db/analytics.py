@@ -68,3 +68,16 @@ def track_event(event: str, page: str = None, session_id: str = None,
     except Exception as exc:
         import logging
         logging.getLogger(__name__).warning("track_event failed: %s", exc)
+
+
+def backfill_enrichment_session(session_id: str, proxy: str) -> None:
+    """Replace the proxy session_id on the latest enrichment_start row with the real one."""
+    with get_engine().begin() as conn:
+        conn.execute(_text("""
+            UPDATE app_analytics
+            SET session_id = :sid
+            WHERE event = 'enrichment_start'
+              AND session_id = :proxy
+            ORDER BY created_at DESC
+            LIMIT 1
+        """), {"sid": session_id, "proxy": proxy})
