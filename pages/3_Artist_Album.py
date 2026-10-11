@@ -6,6 +6,7 @@ import datetime
 
 from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
 from ui.nav import inject_sidebar_nav, check_collection_mode
+from core.formatting import fmt_duration
 from db.queries import get_all_tracks
 from app_state.session import MODE_YC
 
@@ -28,13 +29,6 @@ _BASE_LAYOUT = dict(
 )
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-def fmt_duration(minutes: float) -> str:
-    """Format decimal minutes → m:ss string."""
-    total_sec = int(round(minutes * 60))
-    m, s = divmod(total_sec, 60)
-    return f"{m}:{s:02d}"
-
 
 def genre_pills_html(genres_series: pd.Series) -> str:
     """Build HTML genre pill string from a column of comma-separated genres."""

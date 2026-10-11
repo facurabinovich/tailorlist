@@ -15,6 +15,11 @@ def test_fmt_duration(minutes, expected):
     assert fmt_duration(minutes) == expected
 
 
-def test_fmt_duration_rounding_overflow():
-    # H6: existing behavior, preserved; fix pending decision
-    assert fmt_duration(3.999) == "3:60"
+@pytest.mark.parametrize("minutes, expected", [
+    (3.999, "4:00"),
+    (0.9999, "1:00"),
+    (59.995, "60:00"),
+])
+def test_fmt_duration_rounding_rollover(minutes, expected):
+    # H6 (fixed): seconds that round to 60 carry into the minutes.
+    assert fmt_duration(minutes) == expected

@@ -9,6 +9,8 @@ import pandas as pd
 import pytest
 from unittest.mock import patch
 
+from core.formatting import fmt_duration
+
 
 MIN_TRACKS_ARTIST = 5
 MIN_TRACKS_ALBUM  = 3
@@ -19,13 +21,6 @@ RADAR_FEATURES    = ["energy", "valence", "danceability", "acousticness", "speec
 # ---------------------------------------------------------------------------
 # Helpers — mirrors pure logic from 3_Artist_Album.py
 # ---------------------------------------------------------------------------
-
-def fmt_duration(minutes: float) -> str:
-    """This page uses divmod — note: different from Overview/Playlist Detail."""
-    total_sec = int(round(minutes * 60))
-    m, s = divmod(total_sec, 60)
-    return f"{m}:{s:02d}"
-
 
 def genre_pills_html(genres_series: pd.Series) -> str:
     all_genres: list[str] = []

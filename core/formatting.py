@@ -2,8 +2,7 @@
 
 
 def fmt_duration(minutes: float) -> str:
-    # H6: rounds the seconds part separately, so 3.999 -> "3:60".
-    # Preserved as-is; fix pending decision.
-    m = int(minutes)
-    s = int(round((minutes - m) * 60))
+    """Format decimal minutes as m:ss (rounds total seconds, so 3.999 -> "4:00")."""
+    total_sec = int(round(minutes * 60))
+    m, s = divmod(total_sec, 60)
     return f"{m}:{s:02d}"

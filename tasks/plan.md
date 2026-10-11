@@ -96,6 +96,6 @@ hacer la revisión final.
   antes del refactor y se preserva tal cual.
 - **H6 (bug):** `fmt_duration` en Overview, Playlist Detail y Comparison trunca
   minutos y redondea segundos por separado: `3.999` → "3:60". Artist/Album usa
-  `divmod` sobre segundos totales y da "4:00". Pendiente de decisión de Facu.
+  `divmod` sobre segundos totales y da "4:00". **RESUELTO:** unificado en el algoritmo `divmod`.
 - **H7:** `kpi_card` tiene 5 diseños distintos, no 5 copias. Su unificación se
   difiere al revamp visual.
