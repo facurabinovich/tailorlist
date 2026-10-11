@@ -74,8 +74,8 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
 - Nota sobre `kpi_card`: las 5 copias son 5 diseños distintos (tamaños, layout y escape de HTML). Unificarlas es una decisión de diseño que se toma en el revamp visual, no en este refactor. En la Fase 4 pueden moverse a `ui/` con nombres propios si eso adelgaza las páginas.
 
 ### ✅ Checkpoint 1
-- [ ] Suite verde y smoke tests verdes.
-- [ ] App real: recorrido rápido FC + YC sin errores.
+- [x] Suite verde y smoke tests verdes (455, en ambos órdenes).
+- [x] App real: recapturadas las 20 combinaciones de página y modo, con texto idéntico a la línea base y 19/20 capturas idénticas píxel por píxel (la otra difiere en 1 px de antialiasing). Sin tracebacks nuevos (2026-10-11).
 
 ---
 
