@@ -61,15 +61,17 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Files: `ui/__init__.py`, `ui/theme.py`, `ui/nav.py`, `utils.py`, las páginas (cambio de una línea de import) y los tests (rutas de patch).
   - Nota: toca más de 5 archivos, pero es un cambio mecánico de imports. Se acepta así para no dejar la app a medio migrar.
 
-- [ ] **T9: `ui/components.py`: `kpi_card` y `fmt_duration`** · M
-  - Acceptance: antes de mover, un test de caracterización fija el HTML de cada una de las 5 variantes de `kpi_card` y la salida de las 4 copias de `fmt_duration`. Las páginas usan la versión de `ui/`/`core/formatting.py` y los tests de caracterización siguen pasando sin cambios.
-  - Verify: suite; `tests/test_ui_components.py`.
-  - Files: `ui/components.py`, `core/formatting.py`, `pages/1_Overview.py`, `pages/2_Playlist_Detail.py`, `pages/3_Artist_Album.py`, `pages/4_Playlist_Comparison.py`, `tests/test_ui_components.py` (los kpi_card de My Clusters y Cluster Results van en T10).
+- [ ] **T9: `core/formatting.py`: `fmt_duration`** · S  *(replanificada: ver H6)*
+  - Acceptance: las 3 copias idénticas (Overview, Playlist Detail, Comparison) pasan a `core/formatting.fmt_duration`, movidas tal cual, incluido el bug H6. Artist/Album conserva su versión (que es distinta y correcta) hasta que se decida H6. Hay tests de caracterización de la salida actual, con el caso 3.999 → "3:60" documentado como comportamiento existente.
+  - Verify: suite; `tests/test_formatting.py`.
+  - Files: `core/__init__.py`, `core/formatting.py`, las 3 páginas y `tests/test_formatting.py`.
 
-- [ ] **T10: `ui/components.py`: componentes de clusters** · M
-  - Acceptance: `kpi_card`, `cluster_card`, `info_box`, `hr` y `section_title` de My Clusters y Cluster Results, con caracterización previa del HTML, quedan definidos una sola vez.
-  - Verify: suite; caracterización.
-  - Files: `ui/components.py`, `pages/6_My_Clusters.py`, `pages/_Cluster_Results.py`, `tests/test_ui_components.py`.
+- [ ] **T10: `ui/components.py`: helpers idénticos de clusters** · S  *(replanificada)*
+  - Acceptance: `cluster_card`, `info_box` y `hr` (idénticos en My Clusters y Cluster Results) se definen una vez en `ui/components.py`, con un test de caracterización del HTML previo. `kpi_card`, `section_title`, `_verbose_description` y `_load_unmatched` DIFIEREN entre las dos páginas: no se unifican. Se reporta qué difiere y si parece un arreglo aplicado en una sola página. `_load_unmatched_fc` (idéntico) queda para T18 (`app_state/clusters.py`).
+  - Verify: suite; `tests/test_ui_components.py`.
+  - Files: `ui/components.py`, `pages/6_My_Clusters.py`, `pages/_Cluster_Results.py` y `tests/test_ui_components.py`.
+
+- Nota sobre `kpi_card`: las 5 copias son 5 diseños distintos (tamaños, layout y escape de HTML). Unificarlas es una decisión de diseño que se toma en el revamp visual, no en este refactor. En la Fase 4 pueden moverse a `ui/` con nombres propios si eso adelgaza las páginas.
 
 ### ✅ Checkpoint 1
 - [ ] Suite verde y smoke tests verdes.

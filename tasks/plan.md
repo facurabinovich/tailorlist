@@ -94,3 +94,8 @@ hacer la revisión final.
 - **H5:** en YC, el banner de My Clusters dice "505 tracks", mientras que Home y Overview
   dicen 499 (dev collection: 6 duplicados). Es una inconsistencia que ya existía
   antes del refactor y se preserva tal cual.
+- **H6 (bug):** `fmt_duration` en Overview, Playlist Detail y Comparison trunca
+  minutos y redondea segundos por separado: `3.999` → "3:60". Artist/Album usa
+  `divmod` sobre segundos totales y da "4:00". Pendiente de decisión de Facu.
+- **H7:** `kpi_card` tiene 5 diseños distintos, no 5 copias. Su unificación se
+  difiere al revamp visual.

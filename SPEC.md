@@ -197,7 +197,9 @@ refactorizar:
 - [ ] Ningún test copia lógica de producción: todos importan el código real.
 - [ ] `core/` no importa `streamlit` (lo verifica un test).
 - [ ] Ninguna página importa de otra página.
-- [ ] Cada helper de UI y de formato está definido una sola vez.
+- [ ] Cada helper de UI y de formato *idéntico* está definido una sola vez. Las
+      variantes que producen salidas distintas (p. ej. las 5 versiones de `kpi_card`)
+      no se fusionan acá: quedan documentadas para el revamp visual.
 - [ ] `DEV_MODE` se lee en un único lugar, con un default único y documentado.
 - [ ] No queda SQL dentro de `pages/`.
 - [ ] Ninguna página supera ~500 líneas (hoy el máximo es 1977). Es un
