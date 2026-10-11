@@ -190,6 +190,12 @@ def genre_df():
 # TC-01 – TC-08  _assign_family
 # ---------------------------------------------------------------------------
 
+def _uc_tracks(ids):
+    """Real uc_enriched / uc_skipped entries are track dicts (see pages/_Enrich.py)."""
+    return [{"id": i, "name": f"Track {i}", "artists": "Artist",
+             "playlist_name": "Playlist"} for i in ids]
+
+
 class TestAssignFamily:
 
     def test_TC01_none_returns_other(self):
@@ -601,7 +607,7 @@ class TestMyClustersPageRender:
         all_ids = mock_df["track_id"].unique().tolist()
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=30)
         at.session_state["mode"] = "🔗 Your Collection"
-        at.session_state["uc_enriched"] = all_ids
+        at.session_state["uc_enriched"] = _uc_tracks(all_ids)
         at.session_state["uc_skipped"] = []
         at.session_state["uc_failed"] = []
         with (
@@ -628,8 +634,8 @@ class TestMyClustersPageRender:
         all_ids = mock_df["track_id"].unique().tolist()
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=30)
         at.session_state["mode"] = "🔗 Your Collection"
-        at.session_state["uc_enriched"] = all_ids[:6]
-        at.session_state["uc_skipped"] = all_ids[6:]
+        at.session_state["uc_enriched"] = _uc_tracks(all_ids[:6])
+        at.session_state["uc_skipped"] = _uc_tracks(all_ids[6:])
         at.session_state["uc_failed"] = []
         with (
             patch("db.queries.load_cluster_data", return_value=mock_df),

@@ -112,6 +112,31 @@ def _event(mock, name):
                 if (c.kwargs.get("event") or c.args[0]) == name)
 
 
+class _DownloadButton:
+    """AppTest (Streamlit 1.55) has no ``download_button`` accessor and exposes
+    these as UnknownElement. Download buttons are trigger widgets, so a click is
+    a trigger_value=True widget state sent on the next run."""
+
+    def __init__(self, at, el):
+        self._at, self.label, self._id = at, el.proto.label, el.proto.id
+
+    def click(self):
+        self._clicked = True
+        return self
+
+    def run(self):
+        tree = self._at._tree
+        states = tree.get_widget_states()
+        ws = states.widgets.add()
+        ws.id = self._id
+        ws.trigger_value = True
+        return tree._runner._run(states, timeout=None)
+
+
+def _download_buttons(at):
+    return [_DownloadButton(at, e) for e in at.get("download_button")]
+
+
 class TestExportInstrumentation:
     def test_page_renders(self, results_app):
         results_app.run()
@@ -119,7 +144,7 @@ class TestExportInstrumentation:
 
     def test_both_csv_buttons_are_present(self, results_app):
         results_app.run()
-        labels = [b.label for b in results_app.download_button]
+        labels = [b.label for b in _download_buttons(results_app)]
         assert any("Download CSV" in l for l in labels), labels
         assert any("Download as CSV" in l for l in labels), labels
 
@@ -131,7 +156,7 @@ class TestExportInstrumentation:
     def test_cluster_csv_download_is_tracked(self, results_app):
         with patch("db.queries.track_event") as tev:
             results_app.run()
-            btn = next(b for b in results_app.download_button
+            btn = next(b for b in _download_buttons(results_app)
                        if "Download CSV" in b.label)
             btn.click().run()
 
@@ -149,7 +174,7 @@ class TestExportInstrumentation:
         """The CSV button inside render_export_to_spotify — the prod path."""
         with patch("db.queries.track_event") as tev:
             results_app.run()
-            btn = next(b for b in results_app.download_button
+            btn = next(b for b in _download_buttons(results_app)
                        if "Download as CSV" in b.label)
             btn.click().run()
 
@@ -161,7 +186,7 @@ class TestExportInstrumentation:
     def test_event_fires_once_not_on_later_reruns(self, results_app):
         with patch("db.queries.track_event") as tev:
             results_app.run()
-            results_app.download_button[0].click().run()
+            _download_buttons(results_app)[0].click().run()
             after_click = len(tev.call_args_list)
             results_app.run()
             assert len(tev.call_args_list) == after_click
@@ -171,7 +196,7 @@ class TestExportInstrumentation:
         import json
         with patch("db.queries.track_event") as tev:
             results_app.run()
-            results_app.download_button[0].click().run()
+            _download_buttons(results_app)[0].click().run()
             for c in tev.call_args_list:
                 json.dumps(c.kwargs["properties"])
 
@@ -180,7 +205,7 @@ class TestExportInstrumentation:
         from db.queries import track_event
         with patch("db.queries.track_event") as tev:
             results_app.run()
-            results_app.download_button[0].click().run()
+            _download_buttons(results_app)[0].click().run()
             sig = inspect.signature(track_event)
             for c in tev.call_args_list:
                 sig.bind(*c.args, **c.kwargs)

@@ -546,6 +546,12 @@ def _make_full_mock_df():
 
 
 @pytest.mark.skipif(not APPTEST_AVAILABLE, reason="streamlit.testing not available")
+def _uc_tracks(ids):
+    """Real uc_enriched / uc_skipped entries are track dicts (see pages/_Enrich.py)."""
+    return [{"id": i, "name": f"Track {i}", "artists": "Artist",
+             "playlist_name": "Playlist"} for i in ids]
+
+
 class TestAudioDnaPageRender:
 
     def _run_page(self, mock_df=None, session_state=None):
@@ -573,7 +579,7 @@ class TestAudioDnaPageRender:
         n = len(mock_df["track_id"].unique())
         at = self._run_page(session_state={
             "mode": "🔗 Your Collection",
-            "uc_enriched": mock_df["track_id"].unique().tolist(),
+            "uc_enriched": _uc_tracks(mock_df["track_id"].unique().tolist()),
             "uc_skipped":  [],
             "uc_failed":   [],
         })
@@ -586,8 +592,8 @@ class TestAudioDnaPageRender:
         all_ids = mock_df["track_id"].unique().tolist()
         at = self._run_page(session_state={
             "mode":         "🔗 Your Collection",
-            "uc_enriched":  all_ids[:6],
-            "uc_skipped":   all_ids[6:],
+            "uc_enriched":  _uc_tracks(all_ids[:6]),
+            "uc_skipped":   _uc_tracks(all_ids[6:]),
             "uc_failed":    [],
         })
         assert not at.exception

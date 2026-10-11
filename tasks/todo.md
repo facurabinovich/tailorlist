@@ -12,7 +12,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
 
 ## Fase 0: red de seguridad
 
-- [ ] **T1: Diagnosticar y arreglar los 9 tests rojos** · S
+- [x] **T1: Diagnosticar y arreglar los 9 tests rojos** · S
   - Acceptance: los 6 tests de `download_button` encuentran el botón con la API de Streamlit 1.55, con la misma aserción. Para los 3 tests YC, se confirma si `load_uc_session` puede devolver `uc_skipped` como lista de `str`: si no puede, se actualiza el fixture; si puede, se registra como bug y se avisa.
   - Verify: suite completa, 391/391.
   - Files: `tests/test_analytics_identity.py`, `tests/test_audio_dna.py`, `tests/test_my_clusters.py`.
