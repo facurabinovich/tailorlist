@@ -22,7 +22,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Verify: suite completa, más tests que confirman que las guardias disparan. Correr la suite con el `.env` renombrado temporalmente da el mismo resultado.
   - Files: `tests/conftest.py`.
 
-- [ ] **T3: Smoke tests de todas las páginas** · M
+- [x] **T3: Smoke tests de todas las páginas** · M
   - Acceptance: `tests/test_smoke_pages.py` renderiza las 12 páginas con `AppTest` sin excepción, en modo FC y en modo YC (donde aplique), reusando los mocks de los tests existentes. Las páginas que redirigen sin estado (`_album_goto`, `_Enrich` sin enriquecimiento en curso, Cluster Results sin resultados) se verifican por la redirección esperada, no por el render; ningún test existente prueba `switch_page` con `AppTest`, así que primero se confirma cómo lo expone Streamlit 1.55. También verifica que ninguna página importa otra página.
   - Verify: `pytest tests/test_smoke_pages.py` en verde; `--durations=0` en 5 corridas, con la mediana por página guardada en `tasks/perf-baseline.md`.
   - Files: `tests/test_smoke_pages.py`, `tasks/perf-baseline.md`.
@@ -33,7 +33,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Files: `tasks/perf-baseline.md`.
 
 ### ✅ Checkpoint 0
-- [ ] Suite 100 % verde, guardia de DB activa, smoke tests de todas las páginas y línea base registrada.
+- [x] Suite 100 % verde (436, independiente del orden), guardia de DB activa, smoke tests de todas las páginas y línea base registrada.
 - [ ] Revisión con Facu antes de mover código.
 
 ---
@@ -82,6 +82,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
 - [ ] **T11: Partir `db/queries.py`** · M
   - Acceptance: `db/tracks.py`, `db/progress.py`, `db/sessions.py` y `db/analytics.py` con el código movido tal cual. `db/queries.py` solo re-exporta. Ninguna página cambia todavía.
   - Verify: suite (los patches `db.queries.*` siguen funcionando porque las páginas todavía importan de ahí).
+  - Ojo: `db.queries` liga `get_engine` por nombre al importarse. Los tests parchean `db.queries.get_engine` además de `db.connection.get_engine`. Al partir el módulo, cada submódulo que importe `get_engine` necesita su propio patch, o un fixture compartido en `conftest`. Verificar la suite en orden invertido (`$(ls tests/test_*.py | sort -r)`).
   - Files: `db/*.py`.
 
 - [ ] **T12: `app_state/collection.py` y `core/tracks.py`** · M

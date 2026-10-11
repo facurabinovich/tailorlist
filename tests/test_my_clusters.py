@@ -566,6 +566,19 @@ def _empty_unmatched_df():
 @pytest.mark.skipif(not APPTEST_AVAILABLE, reason="streamlit.testing not available")
 class TestMyClustersPageRender:
 
+    @pytest.fixture(autouse=True)
+    def _db_loaders_unavailable(self):
+        """The page also reads load_all_tracks (collection size) and
+        load_all_tracks_for_grouping (grouping preview); nothing patched them, so
+        they hit the DB and the failure was swallowed by the page's own fallback.
+        That only looked fine because an earlier test file leaked a stubbed
+        get_engine into db.queries. Make the failure explicit where the page looks
+        the loaders up, so these tests exercise the same fallback on any order."""
+        down = RuntimeError("DB unavailable in tests")
+        with patch("db.queries.load_all_tracks", side_effect=down), \
+             patch("db.queries.load_all_tracks_for_grouping", side_effect=down):
+            yield
+
     def _base_patches(self, mock_df=None):
         if mock_df is None:
             mock_df = _make_full_df()

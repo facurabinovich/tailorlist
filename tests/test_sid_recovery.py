@@ -41,6 +41,9 @@ def _no_db(monkeypatch):
         raise RuntimeError("DB access is not allowed in tests")
 
     monkeypatch.setattr("db.connection.get_engine", _refuse)
+    # db.queries binds get_engine at import (`from db.connection import ...`); patch
+    # that binding too so the stub works whatever imported db.queries first.
+    monkeypatch.setattr("db.queries.get_engine", _refuse)
     yield
 
 
