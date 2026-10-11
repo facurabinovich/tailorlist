@@ -30,6 +30,7 @@ from streamlit.testing.v1 import AppTest
 
 import db.queries as q
 import app_state.collection as collection
+import app_state.clusters as clusters_state
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -95,6 +96,10 @@ def _patch_fc_loaders(mp: pytest.MonkeyPatch) -> None:
     for name, fn in patches.items():
         if hasattr(collection, name):
             mp.setattr(collection, name, fn)
+    # app_state.clusters binds the cluster/unmatched/grouping loaders by name too.
+    for name, fn in patches.items():
+        if hasattr(clusters_state, name):
+            mp.setattr(clusters_state, name, fn)
 
 
 def _yc_state(at: AppTest) -> None:

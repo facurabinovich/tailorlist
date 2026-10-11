@@ -101,3 +101,43 @@ def yc_tracks_frame(
         df["release_year"] = parse_release_year(df["release_date"])
         df["decade"] = (df["release_year"] // 10 * 10).where(df["release_year"].notna())
     return add_artist_display(df)
+
+
+_CLUSTER_BASE_COLS = [
+    "track_id", "track_name", "artist_name", "artist_display", "playlist_name",
+    "speechiness", "artist_genres", "decade", "release_year",
+]
+
+
+def cluster_pool_frame(df: pd.DataFrame, cluster_features: list[str]) -> pd.DataFrame:
+    """Columns My Clusters needs from a YC tracks frame, one row per track_id.
+
+    Keeps the base columns plus the cluster features (except the derived
+    ``speechiness_log``) that exist in ``df``, then drops repeated track ids (first wins).
+    """
+    feature_cols = [f for f in cluster_features if f != "speechiness_log"]
+    available = [c for c in _CLUSTER_BASE_COLS + feature_cols if c in df.columns]
+    return df[available].drop_duplicates(subset="track_id")
+
+
+def yc_unmatched_frame(skipped: list[dict], failed: list[dict]) -> pd.DataFrame:
+    """Tracks of the user's collection that had no audio features (skipped + failed).
+
+    One row per raw record (no dedup), with ``release_year`` as the first 4 characters of
+    ``release_date`` and an ``artist_display`` column. Empty input gives an empty frame
+    with the same columns.
+    """
+    rows = []
+    for t in skipped + failed:
+        rows.append({
+            "track_id":      t.get("id", ""),
+            "track_name":    t.get("name", ""),
+            "artist_name":   ", ".join(t.get("artists", [])) if isinstance(t.get("artists"), list) else t.get("artists", ""),
+            "release_year":  t.get("release_date", "")[:4] if t.get("release_date") else "",
+            "artist_genres": t.get("artist_genres", ""),
+            "playlist_name": t.get("playlist_name", ""),
+        })
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=["track_id", "track_name", "artist_name", "release_year", "artist_genres", "playlist_name"]
+    )
+    return add_artist_display(df)

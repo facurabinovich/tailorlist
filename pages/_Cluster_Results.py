@@ -10,13 +10,13 @@ from core.clustering import verbose_description as _verbose_description
 from config import is_dev_mode
 from app_state.session import MODE_FC, MODE_YC
 from db.queries import (
-    load_unmatched_tracks, _add_artist_display,
     load_cluster_progress, save_cluster_progress, save_cluster_progress_bulk,
 )
 from ui.export import render_export_to_spotify
 from ui.theme import inject_global_css
 from ui.nav import check_collection_mode
-from ui.components import cluster_card, info_box, hr
+from app_state.clusters import _load_unmatched_fc, _load_unmatched
+from ui.components import cluster_card, info_box, hr, section_title
 
 
 inject_global_css()
@@ -63,42 +63,6 @@ def kpi_card(icon: str, label: str, value: str, sub: str = "") -> str:
         sub_html,
         "</div>",
     ])
-
-
-def section_title(title: str, desc: str = "") -> None:
-    st.markdown("## " + title)
-    if desc:
-        st.markdown(
-            "<p style='color:#B3B3B3;margin-top:-8px;font-size:0.85rem;'>"
-            + desc + "</p>",
-            unsafe_allow_html=True,
-        )
-
-
-@st.cache_data(show_spinner=False)
-def _load_unmatched_fc() -> pd.DataFrame:
-    return load_unmatched_tracks()
-
-def _load_unmatched(mode: str) -> pd.DataFrame:
-    if mode != MODE_YC:
-        return _load_unmatched_fc()
-    else:
-        skipped = st.session_state.get("uc_skipped", [])
-        failed  = st.session_state.get("uc_failed", [])
-        rows = []
-        for t in skipped + failed:
-            rows.append({
-                "track_id":      t.get("id", ""),
-                "track_name":    t.get("name", ""),
-                "artist_name":   ", ".join(t.get("artists", [])) if isinstance(t.get("artists"), list) else t.get("artists", ""),
-                "release_year":  t.get("release_date", "")[:4] if t.get("release_date") else "",
-                "artist_genres": t.get("artist_genres", ""),
-                "playlist_name": t.get("playlist_name", ""),
-            })
-        df = pd.DataFrame(rows) if rows else pd.DataFrame(
-            columns=["track_id", "track_name", "artist_name", "release_year", "artist_genres", "playlist_name"]
-        )
-        return _add_artist_display(df)
 
 
 # ── Guard — redirect if no results ───────────────────────────────────────────

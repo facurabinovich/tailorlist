@@ -127,7 +127,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Verify: suite.
   - Files: `core/grouping.py`, `pages/6_My_Clusters.py`, `tests/test_my_clusters.py`.
 
-- [ ] **T18: `app_state/clusters.py`: carga y unmatched** · M
+- [x] **T18: `app_state/clusters.py`: carga y unmatched** · M
   - Acceptance: `load_data`, `load_data_fc`, `load_all_grouping_fc` y `_load_unmatched` (deduplicado con Cluster Results) están en un solo lugar. El botón "Refresh track library" sigue limpiando las cachés correctas, con un test explícito.
   - Verify: suite; test del Refresh; app real: My Clusters → configurar → ver resultados en FC.
   - Files: `app_state/clusters.py`, `pages/6_My_Clusters.py`, `pages/_Cluster_Results.py`, tests.

@@ -56,3 +56,16 @@ def test_hr_markdown_calls():
         hr(top=12, bottom=20)
         hr(0, 0)
     assert calls == EXPECTED_HR_CALLS
+
+
+# section_title (T18): identical in My Clusters and Cluster Results before the move.
+EXPECTED_ST_CALLS = [(("## Cluster Overview",), {}), (("## Configure",), {}), (("<p style='color:#B3B3B3;margin-top:-8px;font-size:0.85rem;'>Set all filters</p>",), {'unsafe_allow_html': True})]
+
+
+def test_section_title_markdown_calls():
+    from ui.components import section_title
+    calls = []
+    with mock.patch("streamlit.markdown", side_effect=lambda *a, **k: calls.append((a, k))):
+        section_title("Cluster Overview")
+        section_title("Configure", "Set all filters")
+    assert calls == EXPECTED_ST_CALLS

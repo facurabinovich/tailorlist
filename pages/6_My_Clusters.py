@@ -11,8 +11,8 @@ from config import (
     KMEANS_PATH, KMEANS_SCALER_PATH,
     CLUSTER_NAMES, CLUSTER_COLORS, CLUSTER_FEATURES,
 )
-from app_state.collection import get_tracks
-from app_state.clusters import run_kmeans, compute_k_metrics
+from app_state.clusters import (run_kmeans, compute_k_metrics, load_data_fc, load_all_grouping_fc,
+                                load_data, _load_unmatched_fc, _load_unmatched)
 from core.clustering import (
     verbose_description as _verbose_description,
     best_k as _best_k,
@@ -22,10 +22,10 @@ from core.grouping import (
     group_by_category as run_category_grouping,
     group_by_specific_genres as run_specific_genre_grouping,
 )
-from db.queries import load_cluster_data, load_unmatched_tracks, _add_artist_display
 from config import is_dev_mode
 from app_state.session import MODE_FC, MODE_YC
 from datetime import datetime
+from ui.components import section_title
 from ui.export import render_export_to_spotify
 from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
 from ui.nav import inject_sidebar_nav, check_collection_mode
@@ -139,42 +139,7 @@ def kpi_card(icon: str, label: str, value: str, sub: str = "") -> str:
     ])
 
 
-def section_title(title: str, desc: str = "") -> None:
-    st.markdown("## " + title)
-    if desc:
-        st.markdown(
-            "<p style='color:#B3B3B3;margin-top:-8px;font-size:0.85rem;'>"
-            + desc + "</p>",
-            unsafe_allow_html=True,
-        )
-
-
 # ── Data & model loading ──────────────────────────────────────────────────────
-@st.cache_data(show_spinner="Loading tracks...", ttl=300)
-def load_data_fc() -> pd.DataFrame:
-    return load_cluster_data().drop_duplicates(subset="track_id")
-
-@st.cache_data(show_spinner=False, ttl=300)
-def load_all_grouping_fc() -> pd.DataFrame:
-    """All personal tracks regardless of audio features — cached for preview use."""
-    from db.queries import load_all_tracks_for_grouping
-    return load_all_tracks_for_grouping()
-
-def load_data(mode: str = "") -> pd.DataFrame:
-    if mode != MODE_YC:
-        return load_data_fc()
-    else:
-        df = get_tracks()
-        base_cols = [
-            "track_id", "track_name", "artist_name", "artist_display", "playlist_name",
-            "speechiness", "artist_genres", "decade", "release_year"
-        ]
-        feature_cols = [f for f in CLUSTER_FEATURES if f != "speechiness_log"]
-        cols = base_cols + feature_cols
-        available = [c for c in cols if c in df.columns]
-        return df[available].drop_duplicates(subset="track_id")
-
-
 _current_mode = st.session_state.get("mode", MODE_FC)
 
 # Clear stale playlist selection when mode switches
@@ -309,33 +274,6 @@ _last_group_by_decade = _last_results.get("group_by_decade", True)
 _last_group_by_genre = _last_results.get("group_by_genre", True)
 _last_k_mode = _last_results.get("k_mode", "Auto")
 _last_k = _last_results.get("optimal_k", 4)
-
-# ── KMeans runner ─────────────────────────────────────────────────────────────
-@st.cache_data(show_spinner=False)
-def _load_unmatched_fc() -> pd.DataFrame:
-    return load_unmatched_tracks()
-
-def _load_unmatched(mode: str) -> pd.DataFrame:
-    if mode != MODE_YC:
-        return _load_unmatched_fc()
-    else:
-        skipped = st.session_state.get("uc_skipped", [])
-        failed  = st.session_state.get("uc_failed", [])
-        rows = []
-        for t in skipped + failed:
-            rows.append({
-                "track_id":      t.get("id", ""),
-                "track_name":    t.get("name", ""),
-                "artist_name":   ", ".join(t.get("artists", [])) if isinstance(t.get("artists"), list) else t.get("artists", ""),
-                "release_year":  t.get("release_date", "")[:4] if t.get("release_date") else "",
-                "artist_genres": t.get("artist_genres", ""),
-                "playlist_name": t.get("playlist_name", ""),
-            })
-        df = pd.DataFrame(rows) if rows else pd.DataFrame(
-            columns=["track_id", "track_name", "artist_name", "release_year", "artist_genres", "playlist_name"]
-        )
-        return _add_artist_display(df)
-
 
 # ════════════════════════════════════════════════════════════════════════════
 # HEADER

@@ -62,3 +62,13 @@ def hr(top: int = 24, bottom: int = 24) -> None:
         f"<hr style='border-color:#333;margin-top:{top}px;margin-bottom:{bottom}px;'>",
         unsafe_allow_html=True,
     )
+
+
+def section_title(title: str, desc: str = "") -> None:
+    st.markdown("## " + title)
+    if desc:
+        st.markdown(
+            "<p style='color:#B3B3B3;margin-top:-8px;font-size:0.85rem;'>"
+            + desc + "</p>",
+            unsafe_allow_html=True,
+        )

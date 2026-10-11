@@ -483,17 +483,18 @@ class TestMyClustersPageRender:
         the loaders up, so these tests exercise the same fallback on any order."""
         down = RuntimeError("DB unavailable in tests")
         with patch("db.queries.load_all_tracks", side_effect=down), \
-             patch("db.queries.load_all_tracks_for_grouping", side_effect=down):
+             patch("db.queries.load_all_tracks_for_grouping", side_effect=down), \
+             patch("app_state.clusters.load_all_tracks_for_grouping", side_effect=down):
             yield
 
     def _base_patches(self, mock_df=None):
         if mock_df is None:
             mock_df = _make_full_df()
         return (
-            patch("db.queries.load_cluster_data", return_value=mock_df),
+            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("db.queries.load_unmatched_tracks", return_value=_empty_unmatched_df()),
+            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -507,10 +508,10 @@ class TestMyClustersPageRender:
         mock_df = _make_full_df()
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=30)
         with (
-            patch("db.queries.load_cluster_data", return_value=mock_df),
+            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("db.queries.load_unmatched_tracks", return_value=_empty_unmatched_df()),
+            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -531,11 +532,11 @@ class TestMyClustersPageRender:
         at.session_state["uc_skipped"] = []
         at.session_state["uc_failed"] = []
         with (
-            patch("db.queries.load_cluster_data", return_value=mock_df),
+            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
             patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("db.queries.load_unmatched_tracks", return_value=_empty_unmatched_df()),
+            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -558,11 +559,11 @@ class TestMyClustersPageRender:
         at.session_state["uc_skipped"] = _uc_tracks(all_ids[6:])
         at.session_state["uc_failed"] = []
         with (
-            patch("db.queries.load_cluster_data", return_value=mock_df),
+            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
             patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("db.queries.load_unmatched_tracks", return_value=_empty_unmatched_df()),
+            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -582,10 +583,10 @@ class TestMyClustersPageRender:
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=60)
         at.session_state["clustering_results"] = cr
         with (
-            patch("db.queries.load_cluster_data", return_value=mock_df),
+            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("db.queries.load_unmatched_tracks", return_value=_empty_unmatched_df()),
+            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -605,10 +606,10 @@ class TestMyClustersPageRender:
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=60)
         at.session_state["clustering_results"] = cr
         with (
-            patch("db.queries.load_cluster_data", return_value=mock_df),
+            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("db.queries.load_unmatched_tracks", return_value=_empty_unmatched_df()),
+            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -671,10 +672,10 @@ class TestMyClustersPageRender:
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=60)
         at.session_state["clustering_results"] = cr
         with (
-            patch("db.queries.load_cluster_data", return_value=mock_df),
+            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("db.queries.load_unmatched_tracks", return_value=_empty_unmatched_df()),
+            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -696,10 +697,10 @@ class TestMyClustersPageRender:
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=60)
         at.session_state["clustering_results"] = cr
         with (
-            patch("db.queries.load_cluster_data", return_value=mock_df),
+            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("db.queries.load_unmatched_tracks", return_value=_empty_unmatched_df()),
+            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -727,10 +728,10 @@ class TestMyClustersPageRender:
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=60)
         at.session_state["clustering_results"] = cr
         with (
-            patch("db.queries.load_cluster_data", return_value=mock_df),
+            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("db.queries.load_unmatched_tracks", return_value=_empty_unmatched_df()),
+            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
