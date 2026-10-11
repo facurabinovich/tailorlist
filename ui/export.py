@@ -4,6 +4,7 @@ Spotlistr export UI.
 """
 
 from app_state.analytics import log_export_event
+from core.export import spotify_track_urls, spotlistr_lines
 
 
 def render_export_to_spotify(
@@ -23,10 +24,7 @@ def render_export_to_spotify(
     st.caption(f"{len(tracks)} tracks")
 
     # Build "Artist - Song Name" format for Spotlistr beta
-    artist_song_list = "\n".join(
-        f"{t.get('artists', '').split(',')[0].strip()} - {t.get('name', '')}"
-        for t in tracks
-    )
+    artist_song_list = spotlistr_lines(tracks)
 
     # Step 1 — Copy to clipboard via JS
     st.markdown(
@@ -147,9 +145,7 @@ def render_export_to_spotify(
             key=f"{key_prefix}_csv_dl",
         ) and on_export:
             on_export(n_tracks=len(tracks))
-        url_string = "\n".join(
-            f"https://open.spotify.com/track/{t['id']}" for t in tracks
-        )
+        url_string = spotify_track_urls(tracks)
         st.text_area(
             "Spotify URLs (clickable):",
             url_string,
