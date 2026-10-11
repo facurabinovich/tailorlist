@@ -2,7 +2,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import re
 import pandas as pd
-from db.queries import get_all_tracks
+from app_state.collection import get_all_tracks
 from app_state.session import MODE_FC, MODE_YC
 from core.formatting import fmt_duration
 from ui.theme import inject_global_css, spotify_icon_html, page_brand_html

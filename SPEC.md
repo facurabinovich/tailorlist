@@ -95,7 +95,7 @@ pages → ui, app_state, core
 ui → app_state, config   (nunca db/ directo; excepción temporal: ui/nav.py llama a
                           db.queries.track_event hasta que T14 mueva analytics a app_state)
 app_state → db, spotify, core
-db → config            (puede usar st.cache_data / st.cache_resource)
+db → config, core      (puede usar st.cache_data / st.cache_resource; core es la hoja pura)
 spotify → config
 core → (nada del proyecto salvo config)
 ```

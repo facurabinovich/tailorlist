@@ -4,7 +4,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
-from db.queries import get_all_tracks, load_audio_features_by_playlist, load_playlist_meta, load_tracks_added_by_month
+from app_state.collection import get_all_tracks
+from db.queries import load_audio_features_by_playlist, load_playlist_meta, load_tracks_added_by_month
 from config import CLUSTER_FEATURES
 from app_state.session import MODE_YC
 from core.formatting import fmt_duration

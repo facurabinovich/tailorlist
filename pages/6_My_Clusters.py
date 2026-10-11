@@ -11,7 +11,8 @@ from config import (
     KMEANS_PATH, KMEANS_SCALER_PATH,
     CLUSTER_NAMES, CLUSTER_COLORS, CLUSTER_FEATURES,
 )
-from db.queries import load_cluster_data, get_tracks, load_unmatched_tracks, _add_artist_display
+from app_state.collection import get_tracks
+from db.queries import load_cluster_data, load_unmatched_tracks, _add_artist_display
 from config import is_dev_mode
 from app_state.session import MODE_FC, MODE_YC
 from datetime import datetime

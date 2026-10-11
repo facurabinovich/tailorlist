@@ -635,7 +635,7 @@ class TestPlaylistComparisonPageRender:
         if session_state:
             for k, v in session_state.items():
                 at.session_state[k] = v
-        with patch("db.queries.get_all_tracks", return_value=mock_df), \
+        with patch("app_state.collection.get_all_tracks", return_value=mock_df), \
              patch("db.queries.load_playlist_meta", return_value=_make_mock_meta()), \
              patch("db.queries.load_audio_features_by_playlist", return_value=_make_mock_af_avg()), \
              patch("ui.theme.inject_global_css"), \
@@ -673,7 +673,7 @@ class TestPlaylistComparisonPageRender:
         meta_no_followers = _make_mock_meta().copy()
         meta_no_followers["followers"] = 0
         at = AppTest.from_file("pages/4_Playlist_Comparison.py", default_timeout=30)
-        with patch("db.queries.get_all_tracks", return_value=_make_full_mock_df()), \
+        with patch("app_state.collection.get_all_tracks", return_value=_make_full_mock_df()), \
              patch("db.queries.load_playlist_meta", return_value=meta_no_followers), \
              patch("db.queries.load_audio_features_by_playlist", return_value=_make_mock_af_avg()), \
              patch("ui.theme.inject_global_css"), \
@@ -687,7 +687,7 @@ class TestPlaylistComparisonPageRender:
     def test_TC58_no_audio_features_renders_gracefully(self):
         df = _make_full_mock_df().drop(columns=NORMALIZED_FEATURES + ["tempo"], errors="ignore")
         at = AppTest.from_file("pages/4_Playlist_Comparison.py", default_timeout=30)
-        with patch("db.queries.get_all_tracks", return_value=df), \
+        with patch("app_state.collection.get_all_tracks", return_value=df), \
              patch("db.queries.load_playlist_meta", return_value=_make_mock_meta()), \
              patch("db.queries.load_audio_features_by_playlist", return_value=pd.DataFrame()), \
              patch("ui.theme.inject_global_css"), \

@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
-from db.queries import get_tracks
+from app_state.collection import get_tracks
 from config import NORMALIZED_FEATURES, AUDIO_FEATURES
 from app_state.session import MODE_FC, MODE_YC
 from ui.theme import inject_global_css, spotify_icon_html, page_brand_html

@@ -87,7 +87,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Ojo: `db.queries` liga `get_engine` por nombre al importarse. Los tests parchean `db.queries.get_engine` además de `db.connection.get_engine`. Al partir el módulo, cada submódulo que importe `get_engine` necesita su propio patch, o un fixture compartido en `conftest`. Verificar la suite en orden invertido (`$(ls tests/test_*.py | sort -r)`).
   - Files: `db/*.py`.
 
-- [ ] **T12: `app_state/collection.py` y `core/tracks.py`** · M
+- [x] **T12: `app_state/collection.py` y `core/tracks.py`** · M
   - Acceptance: `get_tracks`, `get_all_tracks`, `get_cluster_data` y `get_audio_features_by_playlist` (que deciden FC/YC según la sesión) salen de `db/`. La normalización de registros YC y `parse_release_year` van a `core/tracks.py`, con tests propios. Las páginas y los patches se migran.
   - Verify: suite; tests de `core/tracks.py` (formatos de fecha, IDs sintéticos, rename de columnas).
   - Files: `app_state/collection.py`, `core/tracks.py`, `db/tracks.py`, las páginas de datos y sus tests (si son más de 5, se parte por grupos de páginas).

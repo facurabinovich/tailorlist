@@ -726,7 +726,7 @@ class TestPlaylistDetailPageRender:
             for k, v in session_state.items():
                 at.session_state[k] = v
 
-        with patch("db.queries.get_all_tracks", return_value=mock_df), \
+        with patch("app_state.collection.get_all_tracks", return_value=mock_df), \
              patch("db.queries.load_audio_features_by_playlist", return_value=_make_mock_af_avg()), \
              patch("db.queries.load_playlist_meta", return_value=_make_mock_meta()), \
              patch("db.queries.load_tracks_added_by_month", return_value=_make_mock_monthly()), \

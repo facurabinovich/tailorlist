@@ -673,7 +673,7 @@ class TestArtistAlbumPageRender:
             for k, v in session_state.items():
                 at.session_state[k] = v
 
-        with patch("db.queries.get_all_tracks", return_value=mock_df), \
+        with patch("app_state.collection.get_all_tracks", return_value=mock_df), \
              patch("ui.theme.inject_global_css"), \
              patch("ui.nav.inject_sidebar_nav"), \
              patch("ui.nav.check_collection_mode", return_value=True), \
@@ -692,7 +692,7 @@ class TestArtistAlbumPageRender:
         at = AppTest.from_file("pages/3_Artist_Album.py", default_timeout=30)
         # Keep all patches active for BOTH runs — switching the radio triggers a
         # full page re-execution, so inject_sidebar_nav must stay mocked.
-        with patch("db.queries.get_all_tracks", return_value=mock_df), \
+        with patch("app_state.collection.get_all_tracks", return_value=mock_df), \
              patch("ui.theme.inject_global_css"), \
              patch("ui.nav.inject_sidebar_nav"), \
              patch("ui.nav.check_collection_mode", return_value=True), \

@@ -1,6 +1,8 @@
 import pandas as pd
 import streamlit as st
 from db.connection import get_engine
+# Pure helper lives in core/tracks.py; kept under its old private name for the loaders below.
+from core.tracks import add_artist_display as _add_artist_display
 
 
 
@@ -45,19 +47,6 @@ WHERE bsa.is_primary = TRUE
 """
 
 
-def _add_artist_display(df: pd.DataFrame) -> pd.DataFrame:
-    """Add artist_display column: 'Primary feat. Secondary' when secondary artists exist."""
-    if "secondary_artists" not in df.columns:
-        df["artist_display"] = df["artist_name"]
-        return df
-    mask = df["secondary_artists"].notna() & (df["secondary_artists"] != "")
-    df["artist_display"] = df["artist_name"].copy()
-    df.loc[mask, "artist_display"] = (
-        df.loc[mask, "artist_name"] + " feat. " + df.loc[mask, "secondary_artists"]
-    )
-    return df
-
-
 @st.cache_data
 def load_tracks() -> pd.DataFrame:
     """All personal playlist tracks, enriched. One row per track-per-playlist."""
@@ -100,39 +89,6 @@ def load_tracks_deduped() -> pd.DataFrame:
     """Unique tracks only (keep first occurrence per spotify_id)."""
     df = load_tracks()
     return df.drop_duplicates(subset="track_id").reset_index(drop=True)
-
-def _parse_release_year(release_date_series: pd.Series) -> pd.Series:
-    """
-    Robustly extract year from Spotify release_date which can be:
-    - "2014"          (year only)
-    - "2014-03"       (year-month)
-    - "2014-03-15"    (full date)
-    """
-    def _extract(val):
-        if pd.isna(val) or val == "":
-            return None
-        val = str(val).strip()
-        # Year only: "2014"
-        if len(val) == 4 and val.isdigit():
-            return int(val)
-        # Year-month: "2014-03"
-        if len(val) == 7:
-            try:
-                return int(val[:4])
-            except ValueError:
-                return None
-        # Full date: "2014-03-15"
-        try:
-            return pd.to_datetime(val, errors="coerce").year
-        except Exception:
-            return None
-
-    result = release_date_series.apply(_extract)
-    # Replace implausible years with None
-    return result.where(result > 1900, other=None)
-
-
-
 
 # ---------------------------------------------------------------------------
 # Overview page queries

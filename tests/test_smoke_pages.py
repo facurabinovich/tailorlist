@@ -29,6 +29,7 @@ from streamlit.runtime.scriptrunner_utils.exceptions import StopException
 from streamlit.testing.v1 import AppTest
 
 import db.queries as q
+import app_state.collection as collection
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -89,6 +90,11 @@ def _patch_fc_loaders(mp: pytest.MonkeyPatch) -> None:
     }
     for name, fn in patches.items():
         mp.setattr(q, name, fn)
+    # The session-aware wrappers (get_tracks, get_all_tracks, ...) look their DB loaders up
+    # in app_state.collection, so patch the loaders they use there too.
+    for name, fn in patches.items():
+        if hasattr(collection, name):
+            mp.setattr(collection, name, fn)
 
 
 def _yc_state(at: AppTest) -> None:

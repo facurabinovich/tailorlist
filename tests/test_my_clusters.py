@@ -625,7 +625,7 @@ class TestMyClustersPageRender:
         at.session_state["uc_failed"] = []
         with (
             patch("db.queries.load_cluster_data", return_value=mock_df),
-            patch("db.queries.get_tracks", return_value=mock_df),
+            patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
             patch("db.queries.load_unmatched_tracks", return_value=_empty_unmatched_df()),
@@ -652,7 +652,7 @@ class TestMyClustersPageRender:
         at.session_state["uc_failed"] = []
         with (
             patch("db.queries.load_cluster_data", return_value=mock_df),
-            patch("db.queries.get_tracks", return_value=mock_df),
+            patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
             patch("db.queries.load_unmatched_tracks", return_value=_empty_unmatched_df()),
