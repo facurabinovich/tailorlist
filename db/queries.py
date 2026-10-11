@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 from db.connection import get_engine
+from app_state.session import MODE_YC
 
 # ---------------------------------------------------------------------------
 # Base enriched tracks query — canonical flat view used across all pages
@@ -98,7 +99,7 @@ def get_all_tracks() -> pd.DataFrame:
     Use this for Overview, Playlist Detail, Comparison — anywhere counts/stats matter.
     Use get_tracks() only where audio features are required (Audio DNA, Clusters).
     """
-    if (st.session_state.get("mode") == "🔗 Your Collection"
+    if (st.session_state.get("mode") == MODE_YC
             and st.session_state.get("uc_active")
             and st.session_state.get("uc_enriched")):
         enriched = pd.DataFrame(st.session_state["uc_enriched"])
@@ -181,7 +182,7 @@ def get_tracks() -> pd.DataFrame:
     when user collection is active, otherwise loads from DB.
     All pages should call this instead of load_tracks().
     """
-    if (st.session_state.get("mode") == "🔗 Your Collection"
+    if (st.session_state.get("mode") == MODE_YC
         and st.session_state.get("uc_active")
         and st.session_state.get("uc_enriched")):
         df = pd.DataFrame(st.session_state["uc_enriched"])
@@ -371,7 +372,7 @@ def load_unmatched_tracks() -> pd.DataFrame:
 
 
 def get_cluster_data() -> pd.DataFrame:
-    if (st.session_state.get("mode") == "🔗 Your Collection"
+    if (st.session_state.get("mode") == MODE_YC
             and st.session_state.get("uc_active")
             and st.session_state.get("uc_enriched")):
         df = get_tracks()
@@ -384,7 +385,7 @@ def get_cluster_data() -> pd.DataFrame:
 
 def get_audio_features_by_playlist() -> pd.DataFrame:
     """Routes to session state or DB based on mode."""
-    if (st.session_state.get("mode") == "🔗 Your Collection"
+    if (st.session_state.get("mode") == MODE_YC
             and st.session_state.get("uc_active")
             and st.session_state.get("uc_enriched")):
         df = get_tracks()

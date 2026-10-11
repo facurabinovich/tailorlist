@@ -45,7 +45,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Verify: suite; test unitario de `is_dev_mode` (sin definir, `"0"`, `"1"`); app real arranca en `DEV_MODE=1` contra el MySQL local.
   - Files: `config.py`, `db/connection.py`, `spotify_client.py`, `utils.py`, `tests/test_config.py` (más una línea en `0_home.py`).
 
-- [ ] **T6: `app_state/session.py`: modos y helpers de sesión** · M
+- [x] **T6: `app_state/session.py`: modos y helpers de sesión** · M
   - Acceptance: las constantes `MODE_YC` y `MODE_FC` tienen el mismo texto exacto que hoy. `read_cookie`, `resolve_sid`, `forget_uc_session` y `mark_uc_session_unavailable` se mueven desde `utils.py`, que las re-exporta. `utils.py` y `db/queries.py` usan las constantes.
   - Verify: suite (`test_sid_recovery` y `test_analytics_identity` incluidos).
   - Files: `app_state/__init__.py`, `app_state/session.py`, `utils.py`, `db/queries.py`.
