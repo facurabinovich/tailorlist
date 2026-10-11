@@ -14,6 +14,10 @@ pytestmark = pytest.mark.filterwarnings("ignore::UserWarning:sklearn")
 
 CLUSTER_FEATURES = ["energy", "acousticness", "valence", "tempo", "danceability", "speechiness_log"]
 
+from core.clustering import (
+    verbose_description as _verbose_description,
+    best_k as _best_k,
+)
 from core.genres import (
     GENRE_FAMILIES,
     assign_family as _assign_family,
@@ -28,39 +32,6 @@ from core.genres import (
 
 def cluster_pct(count: int, total: int) -> float:
     return count / total * 100 if total else 0.0
-
-
-def _verbose_description(energy, valence, danceability, acousticness=0.0, tempo=0.0) -> str:
-    parts = []
-    if energy > 0.65:
-        parts.append("high energy")
-    elif energy < 0.45:
-        parts.append("low energy")
-    else:
-        parts.append("mid energy")
-    if acousticness > 0.5:
-        parts.append("acoustic")
-    else:
-        parts.append("electric")
-    if valence > 0.6:
-        parts.append("happy and uplifting")
-    elif valence < 0.4:
-        parts.append("dark and melancholic")
-    else:
-        parts.append("emotionally neutral")
-    if danceability > 0.65:
-        parts.append("very danceable")
-    elif danceability < 0.4:
-        parts.append("not particularly danceable")
-    if tempo > 130:
-        parts.append("fast tempo")
-    elif tempo < 90:
-        parts.append("slow tempo")
-    if not parts:
-        return "Mixed audio profile."
-    return "Songs that are " + ", ".join(parts[:-1]) + (
-        f" and {parts[-1]}." if len(parts) > 1 else f"{parts[0]}."
-    )
 
 
 def _describe_centroid(c: dict) -> str:
@@ -94,18 +65,6 @@ def _describe_centroid(c: dict) -> str:
     elif tempo < 90:
         parts.append("Slow")
     return " · ".join(parts) if parts else "Mixed"
-
-
-def _best_k(metrics_df: pd.DataFrame):
-    best_sil = int(metrics_df.loc[metrics_df["silhouette"].idxmax(), "k"])
-    inertias = metrics_df["inertia"].values
-    if len(inertias) >= 4:
-        deltas = np.diff(inertias)
-        second_deltas = np.diff(deltas)
-        best_elbow = int(metrics_df["k"].iloc[second_deltas.argmin() + 2])
-    else:
-        best_elbow = best_sil
-    return best_sil, best_elbow
 
 
 # ---------------------------------------------------------------------------

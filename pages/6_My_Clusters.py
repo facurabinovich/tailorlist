@@ -12,6 +12,11 @@ from config import (
     CLUSTER_NAMES, CLUSTER_COLORS, CLUSTER_FEATURES,
 )
 from app_state.collection import get_tracks
+from app_state.clusters import run_kmeans, compute_k_metrics
+from core.clustering import (
+    verbose_description as _verbose_description,
+    best_k as _best_k,
+)
 from db.queries import load_cluster_data, load_unmatched_tracks, _add_artist_display
 from config import is_dev_mode
 from app_state.session import MODE_FC, MODE_YC
@@ -311,202 +316,6 @@ _last_k_mode = _last_results.get("k_mode", "Auto")
 _last_k = _last_results.get("optimal_k", 4)
 
 # ── KMeans runner ─────────────────────────────────────────────────────────────
-def _make_names(centroids_raw: pd.DataFrame, k: int) -> dict:
-    """
-    Names clusters using energy tier as the fixed primary axis, then picks the
-    single most z-score-distinctive non-energy feature as a differentiator.
-    This avoids "Happy · Danceable" vs "Danceable · Happy" order collisions.
-    k ≤ 5: named. k > 5: numbered with audio subtitles.
-    """
-    global_mean = centroids_raw.mean()
-    global_std  = centroids_raw.std().replace(0, 1)
-    z_scores    = (centroids_raw - global_mean) / global_std
-
-    def _energy_tier(val: float) -> str:
-        if val > 0.65: return "high"
-        if val < 0.45: return "low"
-        return "mid"
-
-    # Human-readable names keyed by (energy_tier, differentiator)
-    _VOCAB: dict[tuple, str] = {
-        ("high", "upbeat"):   "Euphoric Bangers",
-        ("high", "dark"):     "Intense Drive",
-        ("high", "acoustic"): "Energetic Acoustic",
-        ("high", "groovy"):   "Club Anthems",
-        ("high", "hip-hop"):  "Hip-Hop Hype",
-        ("high", "fast"):     "Full Throttle",
-        ("high", "subdued"):  "Raw Energy",
-        ("high", None):       "High Energy",
-        ("mid",  "upbeat"):   "Feel-Good Vibes",
-        ("mid",  "dark"):     "Moody Tunes",
-        ("mid",  "acoustic"): "Acoustic Sessions",
-        ("mid",  "groovy"):   "Groove Mix",
-        ("mid",  "hip-hop"):  "Hip-Hop Flow",
-        ("mid",  "fast"):     "Mid-Tempo Rush",
-        ("mid",  "subdued"):  "Understated Cool",
-        ("mid",  None):       "Everyday Mix",
-        ("low",  "upbeat"):   "Chill & Happy",
-        ("low",  "dark"):     "Melancholic",
-        ("low",  "acoustic"): "Acoustic Ballads",
-        ("low",  "groovy"):   "Smooth Grooves",
-        ("low",  "hip-hop"):  "Lo-Fi Hip-Hop",
-        ("low",  "fast"):     "Slow Burn",
-        ("low",  "subdued"):  "Introspective",
-        ("low",  None):       "Mellow",
-    }
-
-    def _differentiators(i: int) -> list[str]:
-        """Ordered list of differentiator keys for cluster i by |z-score| (energy excluded)."""
-        row    = centroids_raw.iloc[i]
-        feat_z = z_scores.iloc[i].drop("energy", errors="ignore").abs().sort_values(ascending=False)
-        out: list[str] = []
-        for feat in feat_z.index:
-            val = float(row[feat])
-            key: str | None = None
-            if   feat == "valence":
-                if val > 0.6:   key = "upbeat"
-                elif val < 0.4: key = "dark"
-            elif feat == "acousticness":
-                if val > 0.5:   key = "acoustic"
-            elif feat == "danceability":
-                if val > 0.65:  key = "groovy"
-                elif val < 0.4: key = "subdued"
-            elif feat == "speechiness_log":
-                if val > 0.25:  key = "hip-hop"
-            elif feat == "tempo":
-                if val > 130:   key = "fast"
-                elif val < 90:  key = "slow"
-            if key and key not in out:
-                out.append(key)
-        return out
-
-    tiers = [_energy_tier(float(centroids_raw.iloc[i]["energy"])) for i in range(k)]
-    diffs = [_differentiators(i) for i in range(k)]
-    names = [
-        _VOCAB.get((tiers[i], diffs[i][0] if diffs[i] else None),
-                   _VOCAB[(tiers[i], None)])
-        for i in range(k)
-    ]
-
-    # Pass 1: collision → extend with next available differentiator
-    for i in range(k):
-        if names.count(names[i]) > 1:
-            for extra in diffs[i][1:]:
-                candidate = f"{names[i]} · {extra.title()}"
-                if names.count(candidate) == 0:
-                    names[i] = candidate
-                    break
-
-    # Pass 2: still colliding → append energy value as numeric tiebreaker
-    for i in range(k):
-        if names.count(names[i]) > 1:
-            names[i] = f"{names[i]} ({float(centroids_raw.iloc[i]['energy']):.2f})"
-
-    if k <= 5:
-        return {i: names[i] for i in range(k)}
-    else:
-        st.session_state["cluster_descriptions"] = {i: names[i] for i in range(k)}
-        return {i: f"Playlist {i + 1}" for i in range(k)}
-
-
-def _verbose_description(energy: float, valence: float, danceability: float,
-                          acousticness: float = 0, tempo: float = 0) -> str:
-    """Convert audio feature values to a human-readable sentence."""
-    parts = []
-
-    # Energy
-    if energy > 0.65:
-        parts.append("high energy")
-    elif energy < 0.45:
-        parts.append("low energy")
-    else:
-        parts.append("mid energy")
-
-    # Acousticness
-    if acousticness > 0.5:
-        parts.append("acoustic")
-    else:
-        parts.append("electric")
-
-    # Valence
-    if valence > 0.6:
-        parts.append("happy and uplifting")
-    elif valence < 0.4:
-        parts.append("dark and melancholic")
-    else:
-        parts.append("emotionally neutral")
-
-    # Danceability
-    if danceability > 0.65:
-        parts.append("very danceable")
-    elif danceability < 0.4:
-        parts.append("not particularly danceable")
-
-    # Tempo
-    if tempo > 130:
-        parts.append("fast tempo")
-    elif tempo < 90:
-        parts.append("slow tempo")
-
-    if not parts:
-        return "Mixed audio profile."
-
-    # Build sentence
-    return "Songs that are " + ", ".join(parts[:-1]) + (
-        f" and {parts[-1]}." if len(parts) > 1 else f"{parts[0]}."
-    )
-
-
-@st.cache_data(show_spinner=False)
-def run_kmeans(track_ids_tuple: tuple, k: int):
-    """
-    Returns:
-        df_clust        — tracks with cluster, cluster_name, PC1, PC2
-        name_map        — {int → str}
-        centroids_norm  — DataFrame(k × radar_features), StandardScaler space
-        var1, var2      — PCA variance explained (%)
-    """
-    df_sub   = df_all[df_all["track_id"].isin(set(track_ids_tuple))].copy()
-    df_sub = df_sub.copy()
-    if "speechiness" in df_sub.columns and "speechiness_log" not in df_sub.columns:
-        df_sub["speechiness_log"] = np.log1p(df_sub["speechiness"])
-    X        = df_sub[CLUSTER_FEATURES].values
-    scaler   = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    km                = KMeans(n_clusters=k, random_state=42, n_init=10)
-    df_sub["cluster"] = km.fit_predict(X_scaled)
-
-    # PCA for visualization (always 2 components)
-    pca        = PCA(n_components=2, random_state=42)
-    coords     = pca.fit_transform(X_scaled)
-    # Flip axes so the dominant feature always loads positively — makes labels intuitive
-    if pca.components_[0][np.abs(pca.components_[0]).argmax()] < 0:
-        coords[:, 0] *= -1
-    if pca.components_[1][np.abs(pca.components_[1]).argmax()] < 0:
-        coords[:, 1] *= -1
-    df_sub["PC1"] = coords[:, 0]
-    df_sub["PC2"] = coords[:, 1]
-    var1 = float(pca.explained_variance_ratio_[0] * 100)
-    var2 = float(pca.explained_variance_ratio_[1] * 100)
-    label1 = CLUSTER_FEATURES[int(np.abs(pca.components_[0]).argmax())]
-    label2 = CLUSTER_FEATURES[int(np.abs(pca.components_[1]).argmax())]
-
-    # Inverse-transform ALL features back to original space for accurate naming
-    centroids_raw = pd.DataFrame(
-        scaler.inverse_transform(km.cluster_centers_),
-        columns=CLUSTER_FEATURES,
-    )
-
-    name_map = _make_names(centroids_raw, k)
-    df_sub["cluster_name"] = df_sub["cluster"].map(name_map)
-
-    # Centroids in StandardScaler space (for radar — radar features only)
-    centroids_scaled = pd.DataFrame(km.cluster_centers_, columns=CLUSTER_FEATURES)
-
-    return df_sub, name_map, centroids_scaled, var1, var2, scaler, label1, label2
-
-
 def run_category_grouping(
     df: pd.DataFrame,
     group_by_decade: bool,
@@ -606,43 +415,6 @@ def run_specific_genre_grouping(
         df_clust["PC1"] = 0.0
         df_clust["PC2"] = 0.0
     return df_clust
-
-
-@st.cache_data(show_spinner=False)
-def compute_k_metrics(track_ids_tuple: tuple) -> pd.DataFrame:
-    from sklearn.metrics import silhouette_score
-    df_sub = df_all[df_all["track_id"].isin(set(track_ids_tuple))].copy()
-    if "speechiness" in df_sub.columns and "speechiness_log" not in df_sub.columns:
-        df_sub["speechiness_log"] = np.log1p(df_sub["speechiness"])
-    X = df_sub[CLUSTER_FEATURES].values
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    rows = []
-    k_range = range(2, min(11, len(df_sub)))
-    for k_i in k_range:
-        km_i = KMeans(n_clusters=k_i, random_state=42, n_init=10)
-        labels = km_i.fit_predict(X_scaled)
-        sil = silhouette_score(X_scaled, labels) if k_i > 1 else 0.0
-        rows.append({"k": k_i, "inertia": km_i.inertia_, "silhouette": sil})
-    return pd.DataFrame(rows)
-
-
-def _best_k(metrics_df: pd.DataFrame) -> tuple[int, int]:
-    """Returns (best_k_silhouette, best_k_elbow)."""
-    best_sil = int(metrics_df.loc[metrics_df["silhouette"].idxmax(), "k"])
-
-    # Elbow: largest second derivative of inertia
-    # Requires at least 4 points (k=2..5) to compute second derivative
-    inertias = metrics_df["inertia"].values
-    if len(inertias) >= 4:
-        deltas = np.diff(inertias)
-        second_deltas = np.diff(deltas)
-        best_elbow = int(metrics_df["k"].iloc[second_deltas.argmin() + 2])
-    else:
-        best_elbow = best_sil  # fall back to silhouette when not enough points
-
-    return best_sil, best_elbow
 
 
 @st.cache_data(show_spinner=False)
@@ -1788,7 +1560,7 @@ if submitted:
 
         _k_spinner = "Finding optimal k…" if k_mode != "Manual" else "Analyzing clusters…"
         with st.spinner(_k_spinner):
-            metrics_df = compute_k_metrics(track_ids)
+            metrics_df = compute_k_metrics(df_all, track_ids)
         best_k_sil, best_k_elbow = _best_k(metrics_df)
 
         if k_mode == "Manual" and k_manual is not None:
@@ -1799,7 +1571,7 @@ if submitted:
             fc_override = False
 
         with st.spinner("Clustering..."):
-            results = run_kmeans(track_ids, optimal_k)
+            results = run_kmeans(df_all, track_ids, optimal_k)
 
         st.session_state.pop("unmatched_assignments", None)
         st.session_state.pop("unmatched_save_status", None)

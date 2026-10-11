@@ -116,7 +116,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Verify: suite.
   - Files: `core/genres.py`, `pages/6_My_Clusters.py`, `tests/test_my_clusters.py`, `tests/test_architecture.py`.
 
-- [ ] **T16: `core/clustering.py`** · M
+- [x] **T16: `core/clustering.py`** · M
   - Nota de T10: `_verbose_description` es lógicamente idéntica en ambas páginas (difiere solo en comentarios); `section_title` y `_load_unmatched` son idénticas byte a byte. Se pueden deduplicar sin riesgo de lógica.
   - Acceptance: el núcleo de KMeans/PCA, `_make_names`, `_verbose_description` (deduplicada con Cluster Results), `compute_k_metrics` y `_best_k` quedan como funciones puras que reciben el df explícito. El wrapper cacheado preserva el keying actual (H1 se pregunta, no se cambia en silencio).
   - Verify: suite; los tests espejo de naming y clustering importan el código real; los resultados con un df fijo son idénticos (mismos labels con `random_state=42`).

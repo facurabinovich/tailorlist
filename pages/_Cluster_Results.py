@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 from config import CLUSTER_FEATURES
+from core.clustering import verbose_description as _verbose_description
 from config import is_dev_mode
 from app_state.session import MODE_FC, MODE_YC
 from db.queries import (
@@ -72,40 +73,6 @@ def section_title(title: str, desc: str = "") -> None:
             + desc + "</p>",
             unsafe_allow_html=True,
         )
-
-
-def _verbose_description(energy: float, valence: float, danceability: float,
-                          acousticness: float = 0, tempo: float = 0) -> str:
-    parts = []
-    if energy > 0.65:
-        parts.append("high energy")
-    elif energy < 0.45:
-        parts.append("low energy")
-    else:
-        parts.append("mid energy")
-    if acousticness > 0.5:
-        parts.append("acoustic")
-    else:
-        parts.append("electric")
-    if valence > 0.6:
-        parts.append("happy and uplifting")
-    elif valence < 0.4:
-        parts.append("dark and melancholic")
-    else:
-        parts.append("emotionally neutral")
-    if danceability > 0.65:
-        parts.append("very danceable")
-    elif danceability < 0.4:
-        parts.append("not particularly danceable")
-    if tempo > 130:
-        parts.append("fast tempo")
-    elif tempo < 90:
-        parts.append("slow tempo")
-    if not parts:
-        return "Mixed audio profile."
-    return "Songs that are " + ", ".join(parts[:-1]) + (
-        f" and {parts[-1]}." if len(parts) > 1 else f"{parts[0]}."
-    )
 
 
 @st.cache_data(show_spinner=False)
