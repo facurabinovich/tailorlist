@@ -7,6 +7,13 @@ from config import PAGE_CONFIG
 
 st.set_page_config(**PAGE_CONFIG)
 
+# Pull the audio-feature fallback DB in the background if it isn't on disk yet.
+# Non-blocking: the app serves immediately and enrichment degrades gracefully
+# until the file lands.
+from fallback_asset import ensure_fallback_db_async
+
+ensure_fallback_db_async()
+
 # ---------------------------------------------------------------------------
 # Navigation — hidden, Enrich registered but excluded from sidebar
 # ---------------------------------------------------------------------------

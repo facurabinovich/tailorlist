@@ -62,3 +62,6 @@ Thumbs.db
 # Claude
 .claude/
 CLAUDE.md
+
+# Vendored agent skills (Claude Code plugin, not app code)
+agent-skills/
