@@ -1,5 +1,7 @@
 # Tareas: refactor de arquitectura
 
+> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Sigue la **Fase 3b, R1** (eliminar el modo FC). Suite: 586 tests, ~60 s. Hallazgos abiertos en `plan.md`: H2, H3, H7, H8 (se resuelve en R2) y H9.
+
 Plan: [`plan.md`](plan.md) · Spec: [`SPEC.md`](../SPEC.md)
 
 Comando de tests (desde WSL):
@@ -138,9 +140,9 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Files: `core/export.py`, `ui/export.py`, `tests/test_core_export.py`.
 
 ### ✅ Checkpoint 3
-- [ ] Suite verde y test de arquitectura verde.
-- [ ] App real: los 3 modos de agrupación (KMeans auto/manual, por categoría, por género específico) en FC y YC, con asignación manual, guardado de progreso, reset y re-apertura.
-- [ ] Revisión con Facu (es la mitad del trabajo).
+- [x] Suite verde (586) y test de arquitectura verde.
+- [x] App real (2026-10-11): las 20 páginas estáticas son idénticas a la línea base. Los flujos se compararon A/B, app original (`e6e5f1c`) contra la refactorizada: KMeans con k=4, por categoría, por género específico, asignación de unmatched más guardado, y vuelta a My Clusters. Todo idéntico en FC y YC, salvo ruido de 1 px y de timing del script. No se probaron reset ni re-apertura, que quedan cubiertos por tests. Scripts en `tasks/qa-tools/`.
+- [x] Revisión con Facu: decidió eliminar FC (Fase 3b).
 
 ---
 
