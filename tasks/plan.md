@@ -88,6 +88,9 @@ hacer la revisión final.
 - **H1:** `run_kmeans` (`6_My_Clusters.py:589`) está cacheada por
   `(track_ids, k)` pero lee la global `df_all`. Si cambian los datos y los IDs
   son los mismos, devuelve un resultado viejo.
+  **Decisión de Facu (2026-10-11): opción 2.** En T16 primero se mueve tal cual
+  (mismo keying). Después, en un commit aparte, el DataFrame entra en la clave
+  de caché, con medición del costo antes y después.
 - **H2:** el comentario de `6_My_Clusters.py:20-21` está desactualizado (Cluster
   Results no importa de My Clusters).
 - **H3:** `_Enrich.py` importa funciones privadas de `pipeline/enrich.py` (fuera
