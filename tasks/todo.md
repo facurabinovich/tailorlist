@@ -122,7 +122,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Verify: suite; los tests espejo de naming y clustering importan el código real; los resultados con un df fijo son idénticos (mismos labels con `random_state=42`).
   - Files: `core/clustering.py`, `app_state/clusters.py`, `pages/6_My_Clusters.py`, `pages/_Cluster_Results.py`, `tests/test_my_clusters.py`.
 
-- [ ] **T17: `core/grouping.py`** · S
+- [x] **T17: `core/grouping.py`** · S
   - Acceptance: `run_category_grouping`, `run_specific_genre_grouping` y `_rd_to_decade` puros, con tests que los importan.
   - Verify: suite.
   - Files: `core/grouping.py`, `pages/6_My_Clusters.py`, `tests/test_my_clusters.py`.

@@ -17,6 +17,11 @@ from core.clustering import (
     verbose_description as _verbose_description,
     best_k as _best_k,
 )
+from core.grouping import (
+    release_date_to_decade as _rd_to_decade,
+    group_by_category as run_category_grouping,
+    group_by_specific_genres as run_specific_genre_grouping,
+)
 from db.queries import load_cluster_data, load_unmatched_tracks, _add_artist_display
 from config import is_dev_mode
 from app_state.session import MODE_FC, MODE_YC
@@ -221,16 +226,6 @@ df_all = load_data(mode=_current_mode)
 
 # Build full YC pool (enriched + non-enriched) inline — _load_unmatched isn't defined yet.
 # FC mode: _df_all_full == df_all (non-enriched tracks are handled by load_all_grouping_fc at each site).
-def _rd_to_decade(rd: str) -> "int | None":
-    """Derive decade (e.g. 2000) from a Spotify release_date string."""
-    if not rd:
-        return None
-    try:
-        y = int(str(rd)[:4])
-        return y // 10 * 10 if 1900 < y < 2100 else None
-    except (ValueError, TypeError):
-        return None
-
 if _current_mode == MODE_YC:
     _yc_ne_rows = [
         {
@@ -316,107 +311,6 @@ _last_k_mode = _last_results.get("k_mode", "Auto")
 _last_k = _last_results.get("optimal_k", 4)
 
 # ── KMeans runner ─────────────────────────────────────────────────────────────
-def run_category_grouping(
-    df: pd.DataFrame,
-    group_by_decade: bool,
-    group_by_genre: bool,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Groups tracks by genre family and/or decade. Returns (df_clustered, df_unmatched).
-    Tracks missing any required grouping dimension go to df_unmatched for manual assignment."""
-    df = df.copy()
-    if "release_year" not in df.columns:
-        df["release_year"] = ""
-    if "artist_display" not in df.columns:
-        df["artist_display"] = df.get("artist_name", "")
-    for _audio_col in ["energy", "valence", "danceability", "acousticness", "tempo", "speechiness"]:
-        if _audio_col not in df.columns:
-            df[_audio_col] = float("nan")
-
-    if group_by_genre and "artist_genres" in df.columns:
-        df["_genre_group"] = df["artist_genres"].apply(
-            lambda g: "Unknown Genre" if (not g or pd.isna(g) or str(g).strip() == "")
-            else _assign_family(g)[0]
-        )
-    else:
-        df["_genre_group"] = None
-
-    if group_by_decade and "decade" in df.columns:
-        df["_decade_group"] = df["decade"].apply(
-            lambda d: f"{int(d)}s" if pd.notna(d) else "Unknown Decade"
-        )
-    else:
-        df["_decade_group"] = None
-
-    # Tracks missing any required grouping field go to manual assignment
-    _unmatched_mask = pd.Series(False, index=df.index)
-    if group_by_genre:
-        _unmatched_mask |= (df["_genre_group"] == "Unknown Genre")
-    if group_by_decade:
-        _unmatched_mask |= (df["_decade_group"] == "Unknown Decade")
-
-    df_unmatched = df[_unmatched_mask].copy()
-    df = df[~_unmatched_mask].copy()
-
-    def _build_name(row):
-        parts = []
-        if group_by_genre and row["_genre_group"]:
-            parts.append(row["_genre_group"])
-        if group_by_decade and row["_decade_group"]:
-            parts.append(row["_decade_group"])
-        return " · ".join(parts) if parts else "Ungrouped"
-
-    df["cluster_name"] = df.apply(_build_name, axis=1)
-    unique_names = sorted(df["cluster_name"].unique())
-    name_to_idx = {n: i for i, n in enumerate(unique_names)}
-    df["cluster"] = df["cluster_name"].map(name_to_idx)
-    df["PC1"] = 0.0
-    df["PC2"] = 0.0
-    return df, df_unmatched
-
-
-def run_specific_genre_grouping(
-    df: pd.DataFrame,
-    selected_genres: list,
-    group_by_decade: bool,
-) -> pd.DataFrame:
-    """One cluster per selected genre. A track appears in every cluster whose genre tag it carries.
-    Tracks matching no selected genre are silently excluded — no unmatched section."""
-    df = df.copy()
-    if "release_year" not in df.columns:
-        df["release_year"] = ""
-    if "artist_display" not in df.columns:
-        df["artist_display"] = df.get("artist_name", "")
-    for _audio_col in ["energy", "valence", "danceability", "acousticness", "tempo", "speechiness"]:
-        if _audio_col not in df.columns:
-            df[_audio_col] = float("nan")
-
-    chunks = []
-    for genre in selected_genres:
-        matching = df[df["artist_genres"].apply(
-            lambda g: genre in {t.strip() for t in (g or "").split(",")}
-        )].copy()
-        if matching.empty:
-            continue
-        if group_by_decade and "decade" in matching.columns:
-            matching["cluster_name"] = genre + " · " + matching["decade"].apply(
-                lambda d: f"{int(d)}s" if pd.notna(d) else "Unknown"
-            )
-        else:
-            matching["cluster_name"] = genre
-        chunks.append(matching)
-
-    if not chunks:
-        df_clust = pd.DataFrame()
-    else:
-        df_clust = pd.concat(chunks, ignore_index=True)
-        unique_names = sorted(df_clust["cluster_name"].unique())
-        name_to_idx = {n: i for i, n in enumerate(unique_names)}
-        df_clust["cluster"] = df_clust["cluster_name"].map(name_to_idx)
-        df_clust["PC1"] = 0.0
-        df_clust["PC2"] = 0.0
-    return df_clust
-
-
 @st.cache_data(show_spinner=False)
 def _load_unmatched_fc() -> pd.DataFrame:
     return load_unmatched_tracks()
