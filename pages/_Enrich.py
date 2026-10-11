@@ -12,7 +12,7 @@ from ui.theme import inject_global_css
 inject_global_css()
 
 from pipeline.enrich import _fetch, _map_fields, _fetch_fallback
-from spotify_client import get_playlist_tracks
+from spotify.client import get_playlist_tracks
 
 import base64
 with open("assets/spotify-logo-icon/Primary_Logo_Green_RGB.svg", "rb") as f:

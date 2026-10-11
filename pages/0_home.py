@@ -112,7 +112,7 @@ if not is_dev_mode():
 if st.session_state.get("mode") == MODE_YC:
 
     import spotipy
-    from spotify_client import extract_playlist_id, get_spotify_client
+    from spotify.client import extract_playlist_id, get_spotify_client
 
     for _k, _v in [
         ("uc_playlists",         []),

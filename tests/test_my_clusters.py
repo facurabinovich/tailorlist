@@ -593,7 +593,7 @@ class TestMyClustersPageRender:
             patch("ui.nav.check_collection_mode", return_value=True),
             patch("ui.theme.spotify_icon_html", return_value=""),
             patch("ui.theme.page_brand_html", return_value=""),
-            patch("spotify_client.render_export_to_spotify"),
+            patch("ui.export.render_export_to_spotify"),
         )
 
     def test_TC48_pre_clustering_renders_without_exception(self):
@@ -610,7 +610,7 @@ class TestMyClustersPageRender:
             patch("ui.nav.check_collection_mode", return_value=True),
             patch("ui.theme.spotify_icon_html", return_value=""),
             patch("ui.theme.page_brand_html", return_value=""),
-            patch("spotify_client.render_export_to_spotify"),
+            patch("ui.export.render_export_to_spotify"),
         ):
             at.run()
         assert not at.exception
@@ -635,7 +635,7 @@ class TestMyClustersPageRender:
             patch("ui.nav.check_collection_mode", return_value=True),
             patch("ui.theme.spotify_icon_html", return_value=""),
             patch("ui.theme.page_brand_html", return_value=""),
-            patch("spotify_client.render_export_to_spotify"),
+            patch("ui.export.render_export_to_spotify"),
         ):
             at.run()
         assert not at.exception
@@ -662,7 +662,7 @@ class TestMyClustersPageRender:
             patch("ui.nav.check_collection_mode", return_value=True),
             patch("ui.theme.spotify_icon_html", return_value=""),
             patch("ui.theme.page_brand_html", return_value=""),
-            patch("spotify_client.render_export_to_spotify"),
+            patch("ui.export.render_export_to_spotify"),
         ):
             at.run()
         assert not at.exception
@@ -685,7 +685,7 @@ class TestMyClustersPageRender:
             patch("ui.nav.check_collection_mode", return_value=True),
             patch("ui.theme.spotify_icon_html", return_value=""),
             patch("ui.theme.page_brand_html", return_value=""),
-            patch("spotify_client.render_export_to_spotify"),
+            patch("ui.export.render_export_to_spotify"),
         ):
             at.run()
         assert not at.exception
@@ -708,7 +708,7 @@ class TestMyClustersPageRender:
             patch("ui.nav.check_collection_mode", return_value=True),
             patch("ui.theme.spotify_icon_html", return_value=""),
             patch("ui.theme.page_brand_html", return_value=""),
-            patch("spotify_client.render_export_to_spotify"),
+            patch("ui.export.render_export_to_spotify"),
         ):
             at.run()
         assert not at.exception
@@ -774,7 +774,7 @@ class TestMyClustersPageRender:
             patch("ui.nav.check_collection_mode", return_value=True),
             patch("ui.theme.spotify_icon_html", return_value=""),
             patch("ui.theme.page_brand_html", return_value=""),
-            patch("spotify_client.render_export_to_spotify"),
+            patch("ui.export.render_export_to_spotify"),
         ):
             at.run()
         assert not at.exception
@@ -799,7 +799,7 @@ class TestMyClustersPageRender:
             patch("ui.nav.check_collection_mode", return_value=True),
             patch("ui.theme.spotify_icon_html", return_value=""),
             patch("ui.theme.page_brand_html", return_value=""),
-            patch("spotify_client.render_export_to_spotify"),
+            patch("ui.export.render_export_to_spotify"),
         ):
             at.run()
         assert not at.exception
@@ -830,7 +830,7 @@ class TestMyClustersPageRender:
             patch("ui.nav.check_collection_mode", return_value=True),
             patch("ui.theme.spotify_icon_html", return_value=""),
             patch("ui.theme.page_brand_html", return_value=""),
-            patch("spotify_client.render_export_to_spotify"),
+            patch("ui.export.render_export_to_spotify"),
         ):
             at.run()
         assert not at.exception

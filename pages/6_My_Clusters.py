@@ -16,7 +16,7 @@ from db.queries import load_cluster_data, load_unmatched_tracks, _add_artist_dis
 from config import is_dev_mode
 from app_state.session import MODE_FC, MODE_YC
 from datetime import datetime
-from spotify_client import render_export_to_spotify
+from ui.export import render_export_to_spotify
 from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
 from ui.nav import inject_sidebar_nav, check_collection_mode
 from ui.components import cluster_card, info_box, hr

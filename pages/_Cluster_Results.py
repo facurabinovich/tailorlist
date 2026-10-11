@@ -12,7 +12,7 @@ from db.queries import (
     load_unmatched_tracks, _add_artist_display,
     load_cluster_progress, save_cluster_progress, save_cluster_progress_bulk,
 )
-from spotify_client import render_export_to_spotify
+from ui.export import render_export_to_spotify
 from ui.theme import inject_global_css
 from ui.nav import check_collection_mode
 from ui.components import cluster_card, info_box, hr
@@ -894,7 +894,7 @@ for rank, row in cluster_sorted.iterrows():
                     key=f"create_pl_{rank}_{i}", type="primary",
                 ):
                     with st.spinner("Creating playlist..."):
-                        from spotify_client import create_spotify_playlist
+                        from spotify.client import create_spotify_playlist
                         url = create_spotify_playlist(_sp_oauth, _name_input, cluster_track_ids)
                     if url:
                         st.success(f"✅ Playlist created! [Open in Spotify]({url})")

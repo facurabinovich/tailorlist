@@ -1,3 +1,7 @@
+import json
+from datetime import datetime
+from pathlib import Path
+
 from db.connection import get_engine
 from sqlalchemy import text as _text
 
@@ -81,3 +85,28 @@ def backfill_enrichment_session(session_id: str, proxy: str) -> None:
             ORDER BY created_at DESC
             LIMIT 1
         """), {"sid": session_id, "proxy": proxy})
+
+
+# ── Export logging ─────────────────────────────────────────────────────────────
+
+def log_export_event(playlist_name: str, track_count: int) -> None:
+    """
+    Append an export event to export_events.json.
+    Silently fails on I/O errors (e.g. read-only filesystems on Streamlit Cloud).
+    """
+    event = {
+        "timestamp":     datetime.utcnow().isoformat(),
+        "playlist_name": playlist_name,
+        "track_count":   track_count,
+    }
+    log_file = Path("export_events.json")
+    try:
+        events: list = json.loads(log_file.read_text()) if log_file.exists() else []
+    except (json.JSONDecodeError, OSError):
+        events = []
+    events.append(event)
+    try:
+        log_file.write_text(json.dumps(events, indent=2))
+    except OSError:
+        pass
+

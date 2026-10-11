@@ -13,8 +13,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import spotify_client  # noqa: F401 — does load_dotenv(override=True) on import
-
 from streamlit.testing.v1 import AppTest
 from pathlib import Path
 

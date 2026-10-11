@@ -20,11 +20,6 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-# spotify_client calls load_dotenv(override=True) at import time, which would
-# stamp the local .env's DEV_MODE over anything the tests set. Import it here,
-# once, so the per-test monkeypatch.setenv below is the last word.
-import spotify_client  # noqa: F401
-
 from streamlit.testing.v1 import AppTest
 
 _ROOT = Path(__file__).resolve().parent.parent

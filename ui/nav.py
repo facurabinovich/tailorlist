@@ -95,7 +95,7 @@ def inject_sidebar_nav(page: str = "Home"):
             and not st.session_state.get("uc_active")
             and not st.session_state.get("_dev_loaded")
             and not st.session_state.get("_adding_playlist")):
-        from db.queries import load_uc_session
+        from app_state.session import load_uc_session
         try:
             _session = load_uc_session(_sid)
             if _session:
@@ -123,18 +123,8 @@ def inject_sidebar_nav(page: str = "Home"):
     # ── Analytics tracking ────────────────────────────────────────────────────────
     if not is_dev_mode():
         try:
-            from db.queries import track_event
-            _session    = st.session_state.get("uc_session_id", "fc_user")
-            _visitor_id = st.session_state.get("visitor_id")
-            _track_key  = f"_tracked_{page}_{_visitor_id}"
-            if not st.session_state.get(_track_key):
-                track_event(
-                    event      = "page_view",
-                    page       = page,
-                    session_id = _session,
-                    visitor_id = _visitor_id,
-                )
-                st.session_state[_track_key] = True
+            from app_state.analytics import track_page_view
+            track_page_view(page)
         except Exception:
             pass
 
@@ -185,7 +175,7 @@ def inject_sidebar_nav(page: str = "Home"):
         import os
         if is_dev_mode():
             import streamlit as st
-            from spotify_client import get_spotify_oauth_client
+            from spotify.client import get_spotify_oauth_client
             st.sidebar.markdown("---")
             st.sidebar.markdown("**🎵 Spotify Export**")
             if st.sidebar.button("🔗 Connect Spotify", key="connect_spotify_sidebar"):
