@@ -4,11 +4,12 @@ import re
 import pandas as pd
 from db.queries import get_all_tracks
 from app_state.session import MODE_FC, MODE_YC
-from utils import inject_global_css, inject_sidebar_nav, spotify_icon_html, page_brand_html
+from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
+from ui.nav import inject_sidebar_nav
 
 inject_global_css()
 inject_sidebar_nav("Overview")
-from utils import check_collection_mode
+from ui.nav import check_collection_mode
 if not check_collection_mode():
     st.stop()
 

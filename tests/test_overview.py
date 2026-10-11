@@ -479,11 +479,11 @@ class TestOverviewPageRender:
                 at.session_state[k] = v
 
         with patch("db.queries.get_all_tracks", return_value=mock_df), \
-             patch("utils.inject_global_css"), \
-             patch("utils.inject_sidebar_nav"), \
-             patch("utils.check_collection_mode", return_value=True), \
-             patch("utils.spotify_icon_html", return_value=""), \
-             patch("utils.page_brand_html", return_value=""):
+             patch("ui.theme.inject_global_css"), \
+             patch("ui.nav.inject_sidebar_nav"), \
+             patch("ui.nav.check_collection_mode", return_value=True), \
+             patch("ui.theme.spotify_icon_html", return_value=""), \
+             patch("ui.theme.page_brand_html", return_value=""):
             at.run()
 
         return at

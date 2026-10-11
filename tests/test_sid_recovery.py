@@ -206,7 +206,7 @@ class TestHomeRecoversFromCookie:
         with patch.object(st, "context", _Ctx(cookie)), \
              patch("db.queries.load_uc_session", return_value=session) as load, \
              patch("db.queries.touch_uc_session") as touch, \
-             patch("utils.inject_sidebar_nav"):
+             patch("ui.nav.inject_sidebar_nav"):
             at.run()
         return at, load, touch
 

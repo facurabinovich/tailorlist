@@ -1,7 +1,8 @@
 import streamlit as st
 from config import PAGE_CONFIG
 st.set_page_config(**PAGE_CONFIG)
-from utils import inject_global_css, inject_sidebar_nav, check_collection_mode, spotify_icon_html, page_brand_html
+from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
+from ui.nav import inject_sidebar_nav, check_collection_mode
 inject_global_css()
 inject_sidebar_nav("Glossary")
 

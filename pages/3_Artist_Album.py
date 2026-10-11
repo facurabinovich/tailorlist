@@ -4,7 +4,8 @@ import plotly.graph_objects as go
 import numpy as np
 import datetime
 
-from utils import inject_global_css, inject_sidebar_nav, check_collection_mode, spotify_icon_html, page_brand_html
+from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
+from ui.nav import inject_sidebar_nav, check_collection_mode
 from db.queries import get_all_tracks
 from app_state.session import MODE_YC
 

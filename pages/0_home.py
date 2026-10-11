@@ -8,7 +8,7 @@ import streamlit as st
 
 _log = logging.getLogger(__name__)
 
-from utils import inject_global_css
+from ui.theme import inject_global_css
 from config import is_dev_mode
 from app_state.session import MODE_FC, MODE_YC
 inject_global_css()
@@ -18,7 +18,7 @@ import base64
 with open("assets/spotify-full-logo/Full_Logo_Green_RGB.svg", "rb") as f:
     img_b64 = base64.b64encode(f.read()).decode()
 
-from utils import inject_sidebar_nav
+from ui.nav import inject_sidebar_nav
 
 # Pick up sid set by _Enrich.py on completion
 if st.session_state.get("_pending_sid"):
@@ -30,7 +30,7 @@ if st.session_state.get("_pending_sid"):
 # resolve_sid(): session_state → ?sid= → cookie, malformed values rejected.
 # The cookie fallback is what makes a bookmarked or typed URL recover a
 # collection — the component iframe cannot put a stored sid back in the URL.
-from utils import resolve_sid, forget_uc_session, mark_uc_session_unavailable
+from app_state.session import resolve_sid, forget_uc_session, mark_uc_session_unavailable
 _sid = resolve_sid()
 
 if (_sid

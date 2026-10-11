@@ -13,7 +13,8 @@ from db.queries import (
     load_cluster_progress, save_cluster_progress, save_cluster_progress_bulk,
 )
 from spotify_client import render_export_to_spotify
-from utils import inject_global_css, check_collection_mode
+from ui.theme import inject_global_css
+from ui.nav import check_collection_mode
 
 
 inject_global_css()

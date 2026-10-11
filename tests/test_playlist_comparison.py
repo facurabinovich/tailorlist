@@ -641,11 +641,11 @@ class TestPlaylistComparisonPageRender:
         with patch("db.queries.get_all_tracks", return_value=mock_df), \
              patch("db.queries.load_playlist_meta", return_value=_make_mock_meta()), \
              patch("db.queries.load_audio_features_by_playlist", return_value=_make_mock_af_avg()), \
-             patch("utils.inject_global_css"), \
-             patch("utils.inject_sidebar_nav"), \
-             patch("utils.check_collection_mode", return_value=True), \
-             patch("utils.spotify_icon_html", return_value=""), \
-             patch("utils.page_brand_html", return_value=""):
+             patch("ui.theme.inject_global_css"), \
+             patch("ui.nav.inject_sidebar_nav"), \
+             patch("ui.nav.check_collection_mode", return_value=True), \
+             patch("ui.theme.spotify_icon_html", return_value=""), \
+             patch("ui.theme.page_brand_html", return_value=""):
             at.run()
         return at
 
@@ -679,11 +679,11 @@ class TestPlaylistComparisonPageRender:
         with patch("db.queries.get_all_tracks", return_value=_make_full_mock_df()), \
              patch("db.queries.load_playlist_meta", return_value=meta_no_followers), \
              patch("db.queries.load_audio_features_by_playlist", return_value=_make_mock_af_avg()), \
-             patch("utils.inject_global_css"), \
-             patch("utils.inject_sidebar_nav"), \
-             patch("utils.check_collection_mode", return_value=True), \
-             patch("utils.spotify_icon_html", return_value=""), \
-             patch("utils.page_brand_html", return_value=""):
+             patch("ui.theme.inject_global_css"), \
+             patch("ui.nav.inject_sidebar_nav"), \
+             patch("ui.nav.check_collection_mode", return_value=True), \
+             patch("ui.theme.spotify_icon_html", return_value=""), \
+             patch("ui.theme.page_brand_html", return_value=""):
             at.run()
         assert not at.exception
 
@@ -693,10 +693,10 @@ class TestPlaylistComparisonPageRender:
         with patch("db.queries.get_all_tracks", return_value=df), \
              patch("db.queries.load_playlist_meta", return_value=_make_mock_meta()), \
              patch("db.queries.load_audio_features_by_playlist", return_value=pd.DataFrame()), \
-             patch("utils.inject_global_css"), \
-             patch("utils.inject_sidebar_nav"), \
-             patch("utils.check_collection_mode", return_value=True), \
-             patch("utils.spotify_icon_html", return_value=""), \
-             patch("utils.page_brand_html", return_value=""):
+             patch("ui.theme.inject_global_css"), \
+             patch("ui.nav.inject_sidebar_nav"), \
+             patch("ui.nav.check_collection_mode", return_value=True), \
+             patch("ui.theme.spotify_icon_html", return_value=""), \
+             patch("ui.theme.page_brand_html", return_value=""):
             at.run()
         assert not at.exception

@@ -679,11 +679,11 @@ class TestArtistAlbumPageRender:
                 at.session_state[k] = v
 
         with patch("db.queries.get_all_tracks", return_value=mock_df), \
-             patch("utils.inject_global_css"), \
-             patch("utils.inject_sidebar_nav"), \
-             patch("utils.check_collection_mode", return_value=True), \
-             patch("utils.spotify_icon_html", return_value=""), \
-             patch("utils.page_brand_html", return_value=""):
+             patch("ui.theme.inject_global_css"), \
+             patch("ui.nav.inject_sidebar_nav"), \
+             patch("ui.nav.check_collection_mode", return_value=True), \
+             patch("ui.theme.spotify_icon_html", return_value=""), \
+             patch("ui.theme.page_brand_html", return_value=""):
             at.run()
 
         return at
@@ -698,11 +698,11 @@ class TestArtistAlbumPageRender:
         # Keep all patches active for BOTH runs — switching the radio triggers a
         # full page re-execution, so inject_sidebar_nav must stay mocked.
         with patch("db.queries.get_all_tracks", return_value=mock_df), \
-             patch("utils.inject_global_css"), \
-             patch("utils.inject_sidebar_nav"), \
-             patch("utils.check_collection_mode", return_value=True), \
-             patch("utils.spotify_icon_html", return_value=""), \
-             patch("utils.page_brand_html", return_value=""):
+             patch("ui.theme.inject_global_css"), \
+             patch("ui.nav.inject_sidebar_nav"), \
+             patch("ui.nav.check_collection_mode", return_value=True), \
+             patch("ui.theme.spotify_icon_html", return_value=""), \
+             patch("ui.theme.page_brand_html", return_value=""):
             at.run()
             assert not at.exception
             at.radio[0].set_value("💿 Album")

@@ -1,7 +1,8 @@
 import streamlit as st
 from config import PAGE_CONFIG
 st.set_page_config(**PAGE_CONFIG)
-from utils import inject_global_css, inject_sidebar_nav, spotify_icon_html, page_brand_html
+from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
+from ui.nav import inject_sidebar_nav
 inject_global_css()
 inject_sidebar_nav("Contact")
 

@@ -55,7 +55,7 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Verify: suite; `grep -rn 'getenv("DEV_MODE"\|Your Collection"' pages/` sin resultados.
   - Files: las 9 páginas con el literal (`0_home`, `1_Overview`, `2_Playlist_Detail`, `3_Artist_Album`, `4_Playlist_Comparison`, `5_Audio_DNA`, `6_My_Clusters`, `_Enrich`, `_Cluster_Results`). Excede las 5, pero es un reemplazo mecánico que conviene hacer de una vez.
 
-- [ ] **T8: `ui/theme.py` y `ui/nav.py`** · M
+- [x] **T8: `ui/theme.py` y `ui/nav.py`** · M
   - Acceptance: `inject_global_css`, `inject_sidebar_nav`, `spotify_icon_html`, `page_brand_html` y `check_collection_mode` se mueven a `ui/`. Las páginas importan desde `ui`, y los ~90 patches `utils.*` se migran.
   - Verify: suite; smoke tests.
   - Files: `ui/__init__.py`, `ui/theme.py`, `ui/nav.py`, `utils.py`, las páginas (cambio de una línea de import) y los tests (rutas de patch).

@@ -8,7 +8,7 @@ from app_state.session import MODE_YC
 
 st.set_page_config(**PAGE_CONFIG)
 
-from utils import inject_global_css
+from ui.theme import inject_global_css
 inject_global_css()
 
 from pipeline.enrich import _fetch, _map_fields, _fetch_fallback

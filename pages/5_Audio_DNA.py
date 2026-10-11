@@ -17,7 +17,8 @@ import plotly.graph_objects as go
 from db.queries import get_tracks
 from config import NORMALIZED_FEATURES, AUDIO_FEATURES
 from app_state.session import MODE_FC, MODE_YC
-from utils import inject_global_css, inject_sidebar_nav, check_collection_mode, spotify_icon_html, page_brand_html
+from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
+from ui.nav import inject_sidebar_nav, check_collection_mode
 
 # ── Layout base ────────────────────────────────────────────────────────────────
 _BL = dict(

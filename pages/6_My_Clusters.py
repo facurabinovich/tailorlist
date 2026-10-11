@@ -16,7 +16,8 @@ from config import is_dev_mode
 from app_state.session import MODE_FC, MODE_YC
 from datetime import datetime
 from spotify_client import render_export_to_spotify
-from utils import inject_global_css, inject_sidebar_nav, check_collection_mode, spotify_icon_html, page_brand_html
+from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
+from ui.nav import inject_sidebar_nav, check_collection_mode
 
 # Functions in this module are imported by _Cluster_Results.py
 # Do not remove helper functions even if they appear unused here

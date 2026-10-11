@@ -7,11 +7,12 @@ from db.queries import get_all_tracks, load_audio_features_by_playlist, load_pla
 from config import AUDIO_FEATURES, NORMALIZED_FEATURES
 from app_state.session import MODE_YC
 
-from utils import inject_global_css
+from ui.theme import inject_global_css
 inject_global_css()
-from utils import inject_sidebar_nav, spotify_icon_html, page_brand_html
+from ui.theme import spotify_icon_html, page_brand_html
+from ui.nav import inject_sidebar_nav
 inject_sidebar_nav("Playlist Comparison")
-from utils import check_collection_mode
+from ui.nav import check_collection_mode
 if not check_collection_mode():
     st.stop()
 

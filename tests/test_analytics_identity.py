@@ -319,7 +319,7 @@ class TestYcSessionRestore:
     def test_restore_runs_and_touches_last_seen(self, home_app):
         with patch("db.queries.load_uc_session", return_value=FAKE_SESSION), \
              patch("db.queries.touch_uc_session") as touch, \
-             patch("utils.inject_sidebar_nav"):
+             patch("ui.nav.inject_sidebar_nav"):
             home_app.run()
             assert not home_app.exception, home_app.exception
             assert touch.call_count == 1, "touch_uc_session was not called"
@@ -328,7 +328,7 @@ class TestYcSessionRestore:
     def test_session_lands_in_state(self, home_app):
         with patch("db.queries.load_uc_session", return_value=FAKE_SESSION), \
              patch("db.queries.touch_uc_session"), \
-             patch("utils.inject_sidebar_nav"):
+             patch("ui.nav.inject_sidebar_nav"):
             home_app.run()
             assert home_app.session_state["uc_active"] is True
             assert home_app.session_state["uc_session_id"] == SID
@@ -337,7 +337,7 @@ class TestYcSessionRestore:
         monkeypatch.setenv("DEV_MODE", "1")
         with patch("db.queries.load_uc_session", return_value=FAKE_SESSION), \
              patch("db.queries.touch_uc_session") as touch, \
-             patch("utils.inject_sidebar_nav"):
+             patch("ui.nav.inject_sidebar_nav"):
             home_app.run()
             assert not home_app.exception, home_app.exception
             assert touch.call_count == 0
