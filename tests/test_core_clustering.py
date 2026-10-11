@@ -1405,15 +1405,33 @@ def test_cached_compute_k_metrics_wrapper_delegates_to_core(df_all):
     pd.testing.assert_frame_equal(m, k_metrics(sub))
 
 
-def test_cache_key_is_ids_and_k_only_h1(df_all):
-    """H1 preserved: the frame is not part of the cache key (underscore param)."""
+def test_changed_data_with_same_ids_and_k_is_recomputed(df_all):
+    """H1 resolved: the frame is part of the cache key, so no stale result."""
     st.cache_data.clear()
     ids = tuple(df_all["track_id"].head(60))
     first = run_kmeans(df_all, ids, 3)
     other = df_all.copy()
-    other["energy"] = 0.5  # different data, same ids/k -> cached result is returned
+    other["energy"] = 0.5  # different data, same ids/k
     again = run_kmeans(other, ids, 3)
-    assert again[0].equals(first[0])
+    assert not again[0].equals(first[0])
+    assert (again[0]["energy"] == 0.5).all()
+    tiny = tuple(df_all["track_id"].head(4))
+    m1 = compute_k_metrics(df_all, tiny)
+    m2 = compute_k_metrics(other, tiny)
+    assert not m1.equals(m2)
+
+
+def test_identical_inputs_hit_the_cache(df_all, monkeypatch):
+    import app_state.clusters as ac
+    st.cache_data.clear()
+    calls = []
+    real = ac.kmeans_cluster
+    monkeypatch.setattr(ac, "kmeans_cluster", lambda d, k: calls.append(k) or real(d, k))
+    ids = tuple(df_all["track_id"].head(60))
+    a = run_kmeans(df_all, ids, 3)
+    b = run_kmeans(df_all.copy(), ids, 3)  # equal content, new object
+    assert calls == [3]
+    assert a[0].equals(b[0])
 
 
 @pytest.mark.parametrize("k", sorted(EXPECTED["make_names"]))

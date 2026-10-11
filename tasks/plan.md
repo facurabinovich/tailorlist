@@ -91,6 +91,7 @@ hacer la revisión final.
   **Decisión de Facu (2026-10-11): opción 2.** En T16 primero se mueve tal cual
   (mismo keying). Después, en un commit aparte, el DataFrame entra en la clave
   de caché, con medición del costo antes y después.
+  **RESUELTO:** `app_state/clusters.py` recibe `df_all` sin guion bajo, así que entra en la clave de caché; costo de un cache hit medido (mediana de 10, set dev completo): `run_kmeans` 13.4 ms -> 20.4 ms, `compute_k_metrics` 12.1 ms -> 14.3 ms.
 - **H2:** el comentario de `6_My_Clusters.py:20-21` está desactualizado (Cluster
   Results no importa de My Clusters).
 - **H3:** `_Enrich.py` importa funciones privadas de `pipeline/enrich.py` (fuera
