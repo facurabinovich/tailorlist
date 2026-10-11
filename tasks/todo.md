@@ -104,8 +104,8 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
   - Files: `spotify/__init__.py`, `spotify/client.py`, `ui/export.py`, `db/analytics.py`, `spotify_client.py`, más las páginas que lo usan.
 
 ### ✅ Checkpoint 2
-- [ ] Suite verde y smoke tests verdes.
-- [ ] App real: FC (Overview, Detail, Comparison) y YC (`dev_collection.json`), con los mismos números que en las capturas base.
+- [x] Suite verde y smoke tests verdes (487, en ambos órdenes).
+- [x] App real: 20/20 textos idénticos byte a byte a la línea base, 20/20 capturas idénticas píxel por píxel y sin errores nuevos en el log (2026-10-11). El arreglo de H6 no se ve porque ningún dato cae en el caso ":60".
 
 ---
 
