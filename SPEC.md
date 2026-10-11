@@ -281,6 +281,25 @@ F0 del pivot.
   Nunca `app_state` ni `ui`. Los datos de la sesión (colección YC) se le pasan
   explícitos.
 
+## Eliminación del modo Demo Collection (FC), decidida el 2026-10-11
+
+Facu confirmó en esta sesión que se elimina el modo FC ("🎵 Demo Collection",
+que en local muestra sus 14 playlists del MySQL local) sin exportar esos datos.
+Es la **única excepción explícita** a "no perder funcionalidad":
+- La app queda con un solo modo, la colección del usuario (hoy "YC"), cargada por
+  URL o, en `DEV_MODE=1`, desde `data/dev_collection.json`.
+- Desaparecen: el selector de modo, `MODE_FC`, el deep-link `?mode=demo`, las
+  ramas FC de páginas y `app_state`, el botón "Refresh track library" (solo
+  recargaba FC desde la DB) y los loaders del star schema que quedan sin uso.
+- **Se queda MySQL para lo que usa YC** (sesiones `uc_sessions`, progreso de
+  clusters, analytics). Simplificar eso es otra decisión, aparte.
+- `pipeline/` (el ETL que llenaba FC) queda sin uso. Se decide en T28, con
+  aprobación.
+- Desde acá, los checkpoints comparan solo YC (`dev_collection.json`) contra la
+  línea base, y los tests o fixtures de FC se borran o se migran a YC.
+- `agent/` recibe la colección como DataFrame (`core/tracks.yc_tracks_frame`).
+  No necesita `db` para cargarla.
+
 ## Contexto operativo
 
 El proyecto **no está en línea**: todos los recursos cloud (Railway, MySQL

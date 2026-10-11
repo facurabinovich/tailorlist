@@ -144,6 +144,28 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
 
 ---
 
+## Fase 3b: eliminar el modo Demo Collection (FC), decisión de Facu (2026-10-11)
+Arranca después del Checkpoint 3, que valida las Fases 1–3 con FC todavía presente. Un commit por task y suite verde en cada uno. Al terminar, la app sigue mostrando en YC exactamente lo de la línea base.
+
+- [ ] **R1: Un solo modo: sesión, navegación y Home** · M
+  - Acceptance: sin selector de modo en la navegación. `st.session_state["mode"]` deja de decidir nada, y la app siempre trabaja con la colección del usuario. Sale `MODE_FC`, y `MODE_YC` solo queda si algo lo sigue necesitando. Home ya no tiene la sección "DEMO COLLECTION MODE". El deep-link `?mode=` se ignora sin error. La auto-carga de `dev_collection.json` en `DEV_MODE=1` sigue igual, y lo mismo la recuperación de sesión (`?sid=`/cookie), `?playlists=`, enrich y borrar sesión.
+  - Verify: suite (los smoke tests FC se eliminan o se migran a YC); app real: Home sin colección muestra el input de URL; con dev collection, todo como en la línea base YC.
+  - Files: `app_state/session.py`, `ui/nav.py`, `pages/0_home.py`, tests.
+- [ ] **R2: Páginas de datos solo YC** · M
+  - Acceptance: Overview, Playlist Detail, Artist/Album, Comparison y Audio DNA sin ramas FC. `app_state/collection.py` sin la rama DB, y H8 (los wrappers sin uso) se elimina. `check_collection_mode` sigue mostrando "No collection yet" sin colección.
+  - Verify: suite; los textos YC de esas páginas son idénticos a la línea base.
+  - Files: las 5 páginas, `app_state/collection.py`, tests.
+- [ ] **R3: My Clusters y Cluster Results solo YC** · M
+  - Acceptance: sin ramas FC, sin el botón Refresh (solo FC), sin los loaders FC cacheados en `app_state/clusters.py`. Los tres modos de agrupación siguen andando en YC, y también la asignación manual, el progreso, el reset y la re-apertura.
+  - Verify: suite; flujos A/B YC del Checkpoint 3 idénticos.
+  - Files: `pages/6_My_Clusters.py`, `pages/_Cluster_Results.py`, `app_state/clusters.py`, tests.
+- [ ] **R4: Código muerto de FC** · S
+  - Acceptance: se borran los loaders del star schema en `db/tracks.py` que ya no usa nadie, `config.PLAYLIST_LABELS`/`_DEV_PLAYLIST_LABELS`/`_DEMO_PLAYLIST_LABELS` si quedan sin uso, y los tests de esos loaders. Se queda lo que YC usa (sessions, progress, analytics, `load_uc_session`…). `pipeline/` no se toca (T28).
+  - Verify: suite; grep sin referencias colgando; test de arquitectura verde.
+
+### ✅ Checkpoint 3b
+- [ ] Suite verde y app real solo YC: los textos de las 10 páginas son idénticos a `tasks/baseline/YC_*` (salvo el selector de modo y H6), y los flujos de clustering son idénticos a `tasks/checkpoint3/new/YC_*`.
+
 ## Fase 4: páginas finas
 **Prioridad por el pivot:** primero la lógica de dominio a `core/`, con firmas tipadas, porque van a ser tools (sobre todo duplicados y versiones de Comparison y los perfiles de Audio DNA). Mover HTML a `ui/` solo si es barato.
 
@@ -173,7 +195,7 @@ página; si una queda por encima, se justifica en el commit.
 
 ## Fase 5: cierre
 
-- [ ] **T28: Eliminar shims** · S
+- [ ] **T28: Eliminar shims** · S  *(más, con aprobación de Facu: qué hacer con `pipeline/`, que queda sin uso al salir FC)*
   - Acceptance: `db/queries.py`, `utils.py` y `spotify_client.py` eliminados y ningún import los referencia. Fuera de `pages/`, el único que importa de `db/` es `monitoring.py`, vía `db.connection.get_engine`, que no cambia (verificado). El comentario de H2 se corrige.
   - Verify: suite; `grep`.
 - [ ] **T29: Comparación final** · S
