@@ -100,3 +100,19 @@ def different_versions(raw: pd.DataFrame, include_playlists: bool = False) -> pd
         aggregations["playlists"] = ("playlist_name", list)
     groups = raw.groupby(["track_name", "artist_name"]).agg(**aggregations).reset_index()
     return groups[(groups["total"] > 1) & (groups["n_unique_ids"] > 1)].sort_values("track_name").reset_index(drop=True)
+
+
+def format_playlist_counts(playlists: list[str]) -> str:
+    """Summarise a list of playlist names (one per occurrence) as readable text.
+
+    Args:
+        playlists: playlist_name of every occurrence, e.g. ["B", "A", "A"].
+    Returns:
+        Names sorted alphabetically and joined with " · "; a name occurring more than once
+        gets a count suffix: ["B", "A", "A"] -> "A (×2) · B". Empty string for an empty list.
+    """
+    counts: dict = {}
+    for name in playlists:
+        counts[name] = counts.get(name, 0) + 1
+    parts = [f"{name} (×{n})" if n > 1 else name for name, n in sorted(counts.items())]
+    return " · ".join(parts)

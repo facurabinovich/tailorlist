@@ -5,7 +5,9 @@ import plotly.graph_objects as go
 import pandas as pd
 from app_state.collection import get_all_tracks
 from config import AUDIO_FEATURES, NORMALIZED_FEATURES
+from core import comparison
 from core.formatting import fmt_duration
+from core.playlist_detail import playlist_audio_averages
 
 from ui.theme import inject_global_css
 inject_global_css()
@@ -56,16 +58,8 @@ if st.session_state.get("uc_active"):
     st.info(f"🎵 Viewing: Your Collection — {n_unique:,} unique tracks across {n_pl} playlists (duplicates across playlists not counted)")
 # ---------------------------------------------------------------------------
 
-meta = pd.DataFrame(st.session_state.get("uc_playlists", []))
-meta = meta.rename(columns={"name": "playlist_name", "track_count": "total_tracks"})
-_af_cols = [c for c in ["energy", "acousticness", "valence", "danceability",
-                         "speechiness", "instrumentalness", "liveness", "tempo"]
-            if c in df.columns]
-af_avg = (
-    df.groupby("playlist_name")[_af_cols]
-    .mean()
-    .reset_index()
-) if _af_cols else pd.DataFrame()
+meta   = comparison.playlist_meta(st.session_state.get("uc_playlists", []))
+af_avg = playlist_audio_averages(df)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -110,7 +104,7 @@ _BASE_LAYOUT = dict(
 st.markdown("## Size")
 st.markdown("<p style='color:#B3B3B3; margin-top:-8px; font-size:0.85rem;'>Spotify's track count per playlist. The same track saved in multiple playlists is counted once in Overview's Unique Tracks — that's why the sum here may be higher.</p>", unsafe_allow_html=True)
 
-size       = meta.sort_values("total_tracks", ascending=False).reset_index(drop=True)
+size       = comparison.size_ranking(meta)
 max_tracks = int(size["total_tracks"].max())
 
 cards_left, cards_right = [], []
@@ -133,7 +127,7 @@ st.markdown("<hr style='border-color:#333; margin-top:24px; margin-bottom:24px;'
 st.markdown("## Followers")
 st.markdown("<p style='color:#B3B3B3; margin-top:-8px; font-size:0.85rem;'>Most followed playlists in your collection.</p>", unsafe_allow_html=True)
 
-followers     = meta.sort_values("followers", ascending=False).reset_index(drop=True)
+followers     = comparison.follower_ranking(meta)
 max_followers = int(followers["followers"].max())
 
 if max_followers == 0:
@@ -153,37 +147,12 @@ st.markdown("<hr style='border-color:#333; margin-top:24px; margin-bottom:24px;'
 # ---------------------------------------------------------------------------
 # Section 1c — Duplicated tracks across playlists
 # ---------------------------------------------------------------------------
-def _fmt_dupe_playlists(pl_list: list) -> str:
-    counts: dict = {}
-    for pl in pl_list:
-        counts[pl] = counts.get(pl, 0) + 1
-    parts = [f"{pl} (×{cnt})" if cnt > 1 else pl for pl, cnt in sorted(counts.items())]
-    return " · ".join(parts)
-
-# Build raw per-occurrence data (real Spotify IDs) shared by both duplicate sections.
-# Use raw session state in YC mode so skipped/failed tracks retain their real Spotify IDs.
-_all_uc_raw = (
+# Raw per-occurrence records (real Spotify IDs, skipped/failed tracks included) feed both duplicate sections.
+_raw_records = (
     st.session_state.get("uc_enriched", [])
     + st.session_state.get("uc_skipped", [])
     + st.session_state.get("uc_failed", [])
 )
-_raw_all = pd.DataFrame(_all_uc_raw)
-if not _raw_all.empty:
-    _dupe_src   = _raw_all[["id", "playlist_name"]].rename(columns={"id": "track_id"})
-    _track_info = (
-        _raw_all.rename(columns={"id": "track_id", "name": "track_name", "artists": "artist_display"})
-        .drop_duplicates("track_id")[["track_id", "track_name", "artist_display"]]
-    )
-    _ver_src = _raw_all[["id", "name", "artists", "playlist_name"]].rename(
-        columns={"id": "track_id", "name": "track_name", "artists": "artist_name"}
-    )
-else:
-    _dupe_src   = pd.DataFrame(columns=["track_id", "playlist_name"])
-    _track_info = pd.DataFrame(columns=["track_id", "track_name", "artist_display"])
-    _ver_src    = pd.DataFrame(columns=["track_id", "track_name", "artist_name", "playlist_name"])
-
-_dupe_src = _dupe_src[_dupe_src["track_id"].notna() & (_dupe_src["track_id"] != "")]
-_ver_src  = _ver_src[_ver_src["track_id"].notna() & (_ver_src["track_id"] != "")]
 
 # ---------------------------------------------------------------------------
 # Section 1c-A — Exact duplicates (same Spotify ID)
@@ -195,15 +164,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-_dupe_groups = (
-    _dupe_src.groupby("track_id")
-    .agg(pl_list=("playlist_name", list), total=("playlist_name", "count"))
-    .reset_index()
-)
-_dupes = _dupe_groups[_dupe_groups["total"] > 1].copy()
-_dupes["Playlists"] = _dupes["pl_list"].apply(_fmt_dupe_playlists)
-_dupes = _dupes.merge(_track_info, on="track_id", how="left")
-_dupes = _dupes.sort_values("track_name").reset_index(drop=True)
+_dupes = comparison.exact_duplicates_across_playlists(_raw_records)
 n_dupes = len(_dupes)
 
 if n_dupes == 0:
@@ -224,8 +185,8 @@ else:
         unsafe_allow_html=True,
     )
     st.dataframe(
-        _dupes[["track_name", "artist_display", "Playlists"]]
-        .rename(columns={"track_name": "Track", "artist_display": "Artist"}),
+        _dupes[["track_name", "artist_display", "playlists"]]
+        .rename(columns={"track_name": "Track", "artist_display": "Artist", "playlists": "Playlists"}),
         use_container_width=True,
         hide_index=True,
     )
@@ -241,18 +202,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-_ver_groups = (
-    _ver_src.groupby(["track_name", "artist_name"])
-    .agg(
-        n_unique_ids=("track_id", "nunique"),
-        total=("track_id", "count"),
-        pl_list=("playlist_name", list),
-    )
-    .reset_index()
-)
-_versions = _ver_groups[(_ver_groups["total"] > 1) & (_ver_groups["n_unique_ids"] > 1)].copy()
-_versions["Playlists"] = _versions["pl_list"].apply(_fmt_dupe_playlists)
-_versions = _versions.sort_values("track_name").reset_index(drop=True)
+_versions = comparison.different_versions_across_playlists(_raw_records)
 n_versions = len(_versions)
 
 if n_versions == 0:
@@ -273,8 +223,8 @@ else:
         unsafe_allow_html=True,
     )
     st.dataframe(
-        _versions[["track_name", "artist_name", "n_unique_ids", "Playlists"]]
-        .rename(columns={"track_name": "Track", "artist_name": "Artist", "n_unique_ids": "Versions"}),
+        _versions[["track_name", "artist_name", "n_unique_ids", "playlists"]]
+        .rename(columns={"track_name": "Track", "artist_name": "Artist", "n_unique_ids": "Versions", "playlists": "Playlists"}),
         use_container_width=True,
         hide_index=True,
     )
@@ -287,14 +237,9 @@ st.markdown("<hr style='border-color:#333; margin-top:24px; margin-bottom:24px;'
 st.markdown("## Duration")
 st.markdown("<p style='color:#B3B3B3; margin-top:-8px; font-size:0.85rem;'>The most extreme tracks.</p>", unsafe_allow_html=True)
 
-if "duration_raw" in df.columns:
-    dur_df = df.copy()
-    dur_df["duration_raw"] = dur_df["duration_raw"] / 60000
-
-    dur          = dur_df.groupby("playlist_name")["duration_raw"].agg(["mean", "min", "max"]).reset_index()
-    dur.columns  = ["playlist_name", "avg_min", "min_min", "max_min"]
-    longest_row  = dur_df.loc[dur_df["duration_raw"].idxmax()]
-    shortest_row = dur_df.loc[dur_df["duration_raw"].idxmin()]
+extremes = comparison.duration_extremes(df)
+if extremes is not None:
+    longest_row, shortest_row = extremes.longest, extremes.shortest
 
     col1, col2 = st.columns(2)
     with col1:
@@ -302,16 +247,16 @@ if "duration_raw" in df.columns:
         <div style="background:#282828; border-radius:14px; padding:22px 24px; border:1px solid #333;">
             <div style="font-size:1.6rem;">⏱️</div>
             <div style="color:#B3B3B3; font-size:0.78rem; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; margin-top:8px;">Longest Track</div>
-            <div style="color:#FFFFFF; font-size:1.1rem; font-weight:800; margin-top:6px;">{longest_row['track_name']}</div>
-            <div style="color:#1DB954; font-size:0.85rem; margin-top:4px;">{longest_row['artist_display']} · {longest_row['playlist_name']} · {fmt_duration(longest_row['duration_raw'])}</div>
+            <div style="color:#FFFFFF; font-size:1.1rem; font-weight:800; margin-top:6px;">{longest_row.track_name}</div>
+            <div style="color:#1DB954; font-size:0.85rem; margin-top:4px;">{longest_row.artist_display} · {longest_row.playlist_name} · {fmt_duration(longest_row.minutes)}</div>
         </div>""", unsafe_allow_html=True)
     with col2:
         st.markdown(f"""
         <div style="background:#282828; border-radius:14px; padding:22px 24px; border:1px solid #333;">
             <div style="font-size:1.6rem;">⚡</div>
             <div style="color:#B3B3B3; font-size:0.78rem; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; margin-top:8px;">Shortest Track</div>
-            <div style="color:#FFFFFF; font-size:1.1rem; font-weight:800; margin-top:6px;">{shortest_row['track_name']}</div>
-            <div style="color:#1DB954; font-size:0.85rem; margin-top:4px;">{shortest_row['artist_display']} · {shortest_row['playlist_name']} · {fmt_duration(shortest_row['duration_raw'])}</div>
+            <div style="color:#FFFFFF; font-size:1.1rem; font-weight:800; margin-top:6px;">{shortest_row.track_name}</div>
+            <div style="color:#1DB954; font-size:0.85rem; margin-top:4px;">{shortest_row.artist_display} · {shortest_row.playlist_name} · {fmt_duration(shortest_row.minutes)}</div>
         </div>""", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -324,10 +269,8 @@ st.markdown("<hr style='border-color:#333; margin-top:24px; margin-bottom:24px;'
 st.markdown("## Popularity")
 st.markdown("<p style='color:#B3B3B3; margin-top:-8px; font-size:0.85rem;'>Average Spotify popularity score (0–100) per playlist.</p>", unsafe_allow_html=True)
 
-if "popularity_raw" in df.columns:
-    pop = df.groupby("playlist_name")["popularity_raw"].mean().reset_index()
-    pop.columns = ["playlist_name", "avg_popularity"]
-    pop = pop.sort_values("avg_popularity", ascending=False)
+pop = comparison.popularity_by_playlist(df)
+if pop is not None:
 
     col1, col2 = st.columns(2)
     with col1:
@@ -339,8 +282,7 @@ if "popularity_raw" in df.columns:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    y_min = max(0, pop["avg_popularity"].min() - 5)
-    y_max = min(100, pop["avg_popularity"].max() + 8)
+    y_min, y_max = comparison.popularity_axis_range(pop)
 
     fig_pop = go.Figure(go.Bar(
         x=pop["playlist_name"],
@@ -386,23 +328,20 @@ if not af_avg.empty:
         "liveness":         ("🎪", "Most Live"),
     }
 
-    available_items = [
-        (feat, m) for feat, m in FEATURE_LABELS.items()
-        if feat in af_avg.columns and af_avg[feat].notna().any()
-    ]
+    available_items = comparison.feature_leaders(af_avg)
     for row_items in [available_items[:4], available_items[4:]]:
         if not row_items:
             continue
         cols = st.columns(len(row_items))
-        for col, (feat, (icon, label)) in zip(cols, row_items):
-            winner = af_avg.loc[af_avg[feat].idxmax()]
+        for col, leader in zip(cols, row_items):
+            icon, label = FEATURE_LABELS[leader.feature]
             with col:
-                st.markdown(kpi_card(icon, label, winner["playlist_name"], f"{winner[feat]:.3f}"), unsafe_allow_html=True)
+                st.markdown(kpi_card(icon, label, leader.playlist_name, f"{leader.value:.3f}"), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
 
-    _heatmap_feats = [f for f in NORMALIZED_FEATURES if f in af_avg.columns and af_avg[f].notna().any()]
-    if _heatmap_feats:
-        heatmap_df = af_avg.set_index("playlist_name")[_heatmap_feats]
+    heatmap_df = comparison.heatmap_matrix(af_avg, NORMALIZED_FEATURES)
+    if heatmap_df is not None:
+        _heatmap_feats = heatmap_df.columns.tolist()
         fig_heat   = go.Figure(data=go.Heatmap(
             z=heatmap_df.values,
             x=_heatmap_feats,
@@ -426,22 +365,10 @@ st.markdown("<hr style='border-color:#333; margin-top:24px; margin-bottom:24px;'
 # ---------------------------------------------------------------------------
 # Section 5 — Genre Diversity
 # ---------------------------------------------------------------------------
-if "artist_genres" in df.columns:
+diversity = comparison.genre_diversity(df)
+if diversity is not None:
     st.markdown("## Genre Diversity")
     st.markdown("<p style='color:#B3B3B3; margin-top:-8px; font-size:0.85rem;'>Number of unique genres across all artists per playlist.</p>", unsafe_allow_html=True)
-
-    def count_unique_genres(genres_series: pd.Series) -> int:
-        genres = set()
-        for g in genres_series.dropna():
-            for part in str(g).split(","):
-                part = part.strip()
-                if part:
-                    genres.add(part.lower())
-        return len(genres)
-
-    diversity         = df.groupby("playlist_name")["artist_genres"].apply(count_unique_genres).reset_index()
-    diversity.columns = ["playlist_name", "unique_genres"]
-    diversity         = diversity.sort_values("unique_genres", ascending=True)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -492,15 +419,8 @@ if "artist_genres" in df.columns:
 st.markdown("## Release Era")
 st.markdown("<p style='color:#B3B3B3; margin-top:-8px; font-size:0.85rem;'>Oldest to newest track range per playlist, with avg year as diamond.</p>", unsafe_allow_html=True)
 
-if "release_year" in df.columns:
-    release         = (
-        df[df["release_year"].notna()]
-        .groupby("playlist_name")["release_year"]
-        .agg(["mean", "min", "max"])
-        .reset_index()
-    )
-    release.columns = ["playlist_name", "avg_release_year", "min_year", "max_year"]
-    release         = release.sort_values("avg_release_year", ascending=True)
+release = comparison.release_era(df)
+if release is not None:
 
     col1, col2 = st.columns(2)
     with col1:
@@ -567,14 +487,8 @@ st.markdown("<hr style='border-color:#333; margin-top:24px; margin-bottom:24px;'
 st.markdown("## Decade Distribution")
 st.markdown("<p style='color:#B3B3B3; margin-top:-8px; font-size:0.85rem;'>Era composition of each playlist. Click a segment to see the tracks.</p>", unsafe_allow_html=True)
 
-if "decade" in df.columns:
-    decade_dist = (
-        df[df["decade"].notna()]
-        .assign(decade_label=lambda x: x["decade"].astype(int).astype(str) + "s")
-        .groupby(["playlist_name", "decade_label"])
-        .size()
-        .reset_index(name="count")
-    )
+decade_dist = comparison.decade_mix(df)
+if decade_dist is not None:
 
     decade_order   = sorted(decade_dist["decade_label"].unique().tolist())
     playlist_order = sorted(df["playlist_name"].unique().tolist())
@@ -614,27 +528,13 @@ if "decade" in df.columns:
         decade_int = int(selected_decade_label.replace("s", "")) if selected_decade_label and selected_decade_label.endswith("s") else None
 
         if decade_int and selected_playlist:
-            deduped   = df.drop_duplicates(subset="track_id")
-            mask      = (
-                (deduped["playlist_name"] == selected_playlist) &
-                (deduped["decade"].notna()) &
-                (deduped["decade"].astype("Int64") == decade_int)
-            )
-            cols_show = [c for c in ["track_name", "artist_display", "release_year", "popularity_raw"] if c in deduped.columns]
-            dec_tracks = deduped[mask][cols_show].copy()
-            if "release_year" in dec_tracks.columns:
-                dec_tracks = dec_tracks.sort_values("release_year")
-                dec_tracks["release_year"] = dec_tracks["release_year"].fillna(0).astype(int)
-            dec_tracks = dec_tracks.rename(columns={
-                "track_name": "Track", "artist_display": "Artist",
-                "release_year": "Year", "popularity_raw": "Popularity",
-            })
+            dec_tracks = comparison.decade_tracks(df, selected_playlist, decade_int)
             st.markdown(
                 f"<p style='color:#1DB954;font-weight:700;font-size:1rem;margin-bottom:4px;'>"
                 f"🎯 {len(dec_tracks)} tracks — {selected_playlist} · {selected_decade_label}</p>",
                 unsafe_allow_html=True,
             )
-            st.dataframe(dec_tracks.reset_index(drop=True), use_container_width=True, hide_index=True)
+            st.dataframe(dec_tracks, use_container_width=True, hide_index=True)
 
 st.markdown("<hr style='border-color:#333; margin-top:24px; margin-bottom:24px;'>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
@@ -643,21 +543,11 @@ st.markdown("<hr style='border-color:#333; margin-top:24px; margin-bottom:24px;'
 st.markdown("## Playlist Age")
 st.markdown("<p style='color:#B3B3B3; margin-top:-8px; font-size:0.85rem;'>When each playlist was first active — position on timeline = date.</p>", unsafe_allow_html=True)
 
-if "added_at" in df.columns:
-    age         = (
-        df[df["added_at"].notna()]
-        .assign(added_at=lambda x: pd.to_datetime(x["added_at"]))
-        .groupby("playlist_name")["added_at"]
-        .min()
-        .reset_index()
-    )
-    age.columns = ["playlist_name", "first_added"]
-    age         = age.sort_values("first_added", ascending=True).reset_index(drop=True)
-    age["first_added_str"] = age["first_added"].dt.strftime("%b %Y")
-
-    missing = set(df["playlist_name"].unique()) - set(age["playlist_name"].tolist())
+age = comparison.playlist_age(df)
+if age is not None:
+    missing = comparison.playlists_without_dates(df, age)
     if missing:
-        st.markdown(f"<p style='color:#B3B3B3; font-size:0.8rem;'>⚠️ No date data for: {', '.join(sorted(missing))}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='color:#B3B3B3; font-size:0.8rem;'>⚠️ No date data for: {', '.join(missing)}</p>", unsafe_allow_html=True)
 
     fig_age   = go.Figure()
     x_anchor  = age["first_added"].min()

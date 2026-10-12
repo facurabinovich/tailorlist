@@ -39,114 +39,45 @@ def ranking_card_pct_str(pct: float) -> str:
     return f"{pct * 100:.1f}"
 
 
+from core import comparison
+from core.playlist_detail import playlist_audio_averages
+
+
 def derive_meta_yc(uc_playlists: list) -> pd.DataFrame:
-    meta = pd.DataFrame(uc_playlists)
-    if meta.empty:
-        return meta
-    return meta.rename(columns={"name": "playlist_name", "track_count": "total_tracks"})
+    return comparison.playlist_meta(uc_playlists)
 
 
 def derive_af_avg_yc(df: pd.DataFrame) -> pd.DataFrame:
-    _af_cols = [c for c in ["energy", "acousticness", "valence", "danceability",
-                             "speechiness", "instrumentalness", "liveness", "tempo"]
-                if c in df.columns]
-    if not _af_cols:
-        return pd.DataFrame()
-    return (
-        df.drop_duplicates(subset="track_id")
-        .groupby("playlist_name")[_af_cols]
-        .mean()
-        .reset_index()
-    )
-
-
-def detect_cross_playlist_dupes(df: pd.DataFrame) -> pd.DataFrame:
-    deduped_pl = df.drop_duplicates(subset=["track_name", "artist_name", "playlist_name"])
-    groups = (
-        deduped_pl.groupby(["track_name", "artist_name", "artist_display"])["playlist_name"]
-        .apply(lambda x: sorted(x.unique().tolist()))
-        .reset_index()
-    )
-    groups.columns = ["track_name", "artist_name", "artist_display", "playlists"]
-    dupes = groups[groups["playlists"].apply(len) > 1].copy()
-    return dupes.sort_values("track_name").reset_index(drop=True)
-
-
-def normalize_duration_yc(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    df["duration_raw"] = df["duration_raw"] / 60000
-    return df
-
-
-def compute_duration_stats(df: pd.DataFrame) -> pd.DataFrame:
-    dur = df.groupby("playlist_name")["duration_raw"].agg(["mean", "min", "max"]).reset_index()
-    dur.columns = ["playlist_name", "avg_min", "min_min", "max_min"]
-    return dur
-
-
-def compute_popularity_stats(df: pd.DataFrame) -> pd.DataFrame:
-    pop = df.groupby("playlist_name")["popularity_raw"].mean().reset_index()
-    pop.columns = ["playlist_name", "avg_popularity"]
-    return pop.sort_values("avg_popularity", ascending=False).reset_index(drop=True)
-
-
-def compute_pop_chart_range(pop: pd.DataFrame):
-    y_min = max(0, pop["avg_popularity"].min() - 5)
-    y_max = min(100, pop["avg_popularity"].max() + 8)
-    return y_min, y_max
-
-
-def count_unique_genres(genres_series: pd.Series) -> int:
-    genres = set()
-    for g in genres_series.dropna():
-        for part in str(g).split(","):
-            part = part.strip()
-            if part:
-                genres.add(part.lower())
-    return len(genres)
-
-
-def compute_genre_diversity(df: pd.DataFrame) -> pd.DataFrame:
-    diversity = df.groupby("playlist_name")["artist_genres"].apply(count_unique_genres).reset_index()
-    diversity.columns = ["playlist_name", "unique_genres"]
-    return diversity.sort_values("unique_genres", ascending=True).reset_index(drop=True)
-
-
-def compute_release_era(df: pd.DataFrame) -> pd.DataFrame:
-    release = (
-        df[df["release_year"].notna()]
-        .groupby("playlist_name")["release_year"]
-        .agg(["mean", "min", "max"])
-        .reset_index()
-    )
-    release.columns = ["playlist_name", "avg_release_year", "min_year", "max_year"]
-    return release.sort_values("avg_release_year", ascending=True).reset_index(drop=True)
-
-
-def compute_decade_dist(df: pd.DataFrame) -> pd.DataFrame:
-    return (
-        df[df["decade"].notna()]
-        .assign(decade_label=lambda x: x["decade"].astype(int).astype(str) + "s")
-        .groupby(["playlist_name", "decade_label"])
-        .size()
-        .reset_index(name="count")
-    )
-
-
-def compute_playlist_age(df: pd.DataFrame) -> pd.DataFrame:
-    age = (
-        df[df["added_at"].notna()]
-        .assign(added_at=lambda x: pd.to_datetime(x["added_at"]))
-        .groupby("playlist_name")["added_at"]
-        .min()
-        .reset_index()
-    )
-    age.columns = ["playlist_name", "first_added"]
-    return age.sort_values("first_added", ascending=True).reset_index(drop=True)
+    return playlist_audio_averages(df)
 
 
 def audio_feature_winner(af_avg: pd.DataFrame, feature: str) -> str:
-    return af_avg.loc[af_avg[feature].idxmax(), "playlist_name"]
+    return {l.feature: l.playlist_name for l in comparison.feature_leaders(af_avg)}[feature]
+
+
+def count_unique_genres(genres_series: pd.Series) -> int:
+    return comparison.count_unique_genres(genres_series)
+
+
+def compute_genre_diversity(df): return comparison.genre_diversity(df).reset_index(drop=True)
+def compute_release_era(df): return comparison.release_era(df).reset_index(drop=True)
+def compute_decade_dist(df): return comparison.decade_mix(df)
+def compute_playlist_age(df): return comparison.playlist_age(df)
+def compute_popularity_stats(df): return comparison.popularity_by_playlist(df)
+def compute_pop_chart_range(pop): return comparison.popularity_axis_range(pop)
+
+
+def compute_duration_stats(df):
+    # the page feeds milliseconds; the fixture holds minutes, so scale it up
+    return comparison.duration_by_playlist(df.assign(duration_raw=df["duration_raw"] * 60000))
+
+
+def records_from_frame(df: pd.DataFrame) -> list:
+    """Raw import records (id / name / artists / playlist_name) matching a collection frame."""
+    return [
+        {"id": r.track_id, "name": r.track_name, "artists": r.artist_display, "playlist_name": r.playlist_name}
+        for r in df.itertuples()
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -295,52 +226,52 @@ class TestYcModeDerivations:
 # ---------------------------------------------------------------------------
 
 class TestCrossPlaylistDupes:
+    # The page detects duplicates by Spotify ID over the raw records (core.comparison), not by
+    # name + artist as an earlier local mirror did; the cases below use records accordingly.
+
     def test_track_in_two_playlists_detected(self, multi_pl_df):
-        dupes = detect_cross_playlist_dupes(multi_pl_df)
+        dupes = comparison.exact_duplicates_across_playlists(records_from_frame(multi_pl_df))
         assert len(dupes) == 1
         assert dupes.iloc[0]["track_name"] == "Song A"
 
     def test_playlists_list_sorted(self, multi_pl_df):
-        dupes = detect_cross_playlist_dupes(multi_pl_df)
-        pls = dupes.iloc[0]["playlists"]
-        assert pls == sorted(pls)
+        dupes = comparison.exact_duplicates_across_playlists(records_from_frame(multi_pl_df))
+        assert dupes.iloc[0]["playlists"] == "PL1 · PL2"
 
     def test_track_in_one_playlist_not_in_dupes(self, multi_pl_df):
-        dupes = detect_cross_playlist_dupes(multi_pl_df)
+        dupes = comparison.exact_duplicates_across_playlists(records_from_frame(multi_pl_df))
         names = dupes["track_name"].tolist()
         assert "Song D" not in names
         assert "Song B" not in names
 
     def test_same_track_name_different_artist_not_duplicate(self):
-        df = pd.DataFrame({
-            "track_name":    ["Song X", "Song X"],
-            "artist_name":   ["A", "B"],
-            "artist_display":["A", "B"],
-            "playlist_name": ["PL1", "PL2"],
-        })
-        dupes = detect_cross_playlist_dupes(df)
-        assert dupes.empty
+        recs = [
+            {"id": "1", "name": "Song X", "artists": "A", "playlist_name": "PL1"},
+            {"id": "2", "name": "Song X", "artists": "B", "playlist_name": "PL2"},
+        ]
+        assert comparison.exact_duplicates_across_playlists(recs).empty
+        assert comparison.different_versions_across_playlists(recs).empty
 
-    def test_same_track_twice_in_same_playlist_not_cross_dupe(self):
-        df = pd.DataFrame({
-            "track_name":    ["Song X", "Song X"],
-            "artist_name":   ["A", "A"],
-            "artist_display":["A", "A"],
-            "playlist_name": ["PL1", "PL1"],
-        })
-        dupes = detect_cross_playlist_dupes(df)
-        assert dupes.empty
+    def test_same_track_twice_in_same_playlist_is_listed(self):
+        # The old name-based mirror said "not a cross-playlist dupe"; the page section is
+        # "Exact Duplicates ... across or within playlists", so a within-playlist repeat IS listed.
+        recs = [
+            {"id": "1", "name": "Song X", "artists": "A", "playlist_name": "PL1"},
+            {"id": "1", "name": "Song X", "artists": "A", "playlist_name": "PL1"},
+        ]
+        dupes = comparison.exact_duplicates_across_playlists(recs)
+        assert len(dupes) == 1
+        assert dupes.iloc[0]["playlists"] == "PL1 (×2)"
 
     def test_result_sorted_by_track_name(self):
-        df = pd.DataFrame({
-            "track_name":    ["Zebra", "Zebra", "Apple", "Apple"],
-            "artist_name":   ["X", "X", "Y", "Y"],
-            "artist_display":["X", "X", "Y", "Y"],
-            "playlist_name": ["PL1", "PL2", "PL1", "PL2"],
-        })
-        dupes = detect_cross_playlist_dupes(df)
-        names = dupes["track_name"].tolist()
-        assert names == sorted(names)
+        recs = [
+            {"id": "z", "name": "Zebra", "artists": "X", "playlist_name": "PL1"},
+            {"id": "z", "name": "Zebra", "artists": "X", "playlist_name": "PL2"},
+            {"id": "a", "name": "Apple", "artists": "Y", "playlist_name": "PL1"},
+            {"id": "a", "name": "Apple", "artists": "Y", "playlist_name": "PL2"},
+        ]
+        names = comparison.exact_duplicates_across_playlists(recs)["track_name"].tolist()
+        assert names == ["Apple", "Zebra"]
 
 
 # ---------------------------------------------------------------------------
@@ -351,24 +282,21 @@ class TestDurationSection:
     def test_yc_mode_converts_ms_to_minutes(self, multi_pl_df):
         df_ms = multi_pl_df.copy()
         df_ms["duration_raw"] = df_ms["duration_raw"] * 60000
-        result = normalize_duration_yc(df_ms)
-        pd.testing.assert_series_equal(
-            result["duration_raw"].reset_index(drop=True),
-            multi_pl_df["duration_raw"].reset_index(drop=True),
-            check_names=False,
-        )
+        extremes = comparison.duration_extremes(df_ms)
+        assert extremes.longest.minutes == pytest.approx(5.0)
+        assert extremes.shortest.minutes == pytest.approx(2.5)
 
     def test_duration_stats_has_correct_columns(self, multi_pl_df):
         dur = compute_duration_stats(multi_pl_df)
         assert set(dur.columns) == {"playlist_name", "avg_min", "min_min", "max_min"}
 
     def test_longest_track_identified(self, multi_pl_df):
-        longest = multi_pl_df.loc[multi_pl_df["duration_raw"].idxmax()]
-        assert longest["track_name"] == "Song D"
+        longest = comparison.duration_extremes(multi_pl_df.assign(duration_raw=multi_pl_df["duration_raw"] * 60000)).longest
+        assert longest.track_name == "Song D"
 
     def test_shortest_track_identified(self, multi_pl_df):
-        shortest = multi_pl_df.loc[multi_pl_df["duration_raw"].idxmin()]
-        assert shortest["track_name"] == "Song E"
+        shortest = comparison.duration_extremes(multi_pl_df.assign(duration_raw=multi_pl_df["duration_raw"] * 60000)).shortest
+        assert shortest.track_name == "Song E"
 
 
 # ---------------------------------------------------------------------------

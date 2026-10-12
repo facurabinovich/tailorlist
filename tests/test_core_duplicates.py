@@ -113,3 +113,9 @@ def test_inputs_not_mutated():
     dup.exact_duplicates(raw)
     dup.different_versions(raw)
     pd.testing.assert_frame_equal(raw, before)
+
+
+def test_format_playlist_counts():
+    assert dup.format_playlist_counts(["B", "A", "A"]) == "A (×2) · B"
+    assert dup.format_playlist_counts(["Solo"]) == "Solo"
+    assert dup.format_playlist_counts([]) == ""
