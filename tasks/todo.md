@@ -1,6 +1,6 @@
 # Tareas: refactor de arquitectura
 
-> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Fase 3b completa (2026-10-12, Checkpoint 3b). Fase 4 completa (Checkpoint 4, 2026-10-12); Fase 5: T28–T29 hechas; sigue T30 (README y revisión). Suite: 977 tests, ~1–3 min. Hallazgos abiertos en `plan.md`: H7, H9, H11–H13, H15–H19 (H2, H3 y H8 resueltos).
+> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Fase 3b completa (2026-10-12, Checkpoint 3b). Fase 4 completa (Checkpoint 4, 2026-10-12); Fase 5 completa (2026-10-12). Falta el Checkpoint final: la revisión con `/review` (opcional) y el OK de Facu para el merge a `main`. Suite: 977 tests, ~1–3 min. Hallazgos abiertos en `plan.md`: H7, H9, H11–H13, H15–H19 (H2, H3 y H8 resueltos).
 
 Plan: [`plan.md`](plan.md) · Spec: [`SPEC.md`](../SPEC.md)
 
@@ -218,10 +218,11 @@ página; si una queda por encima, se justifica en el commit.
   - Acceptance: tiempos de los smoke tests (mediana de 5) frente a la línea base, sin una regresión mayor al 20 % que supere la varianza. Capturas finales frente a las de la línea base, sin diferencias visibles.
   - Verify: `tasks/perf-baseline.md` actualizado con el antes y el después.
   - Hecho (2026-10-12): comparación pareja (mismo subconjunto YC, misma máquina, 3 corridas por versión) en `perf-baseline.md`: total +2 %, páginas pesadas entre −8 % y +1 %; Home (+0.08 s) y Cluster Results por categoría (+0.19 s) suben de forma consistente, pero en términos absolutos son menos de 0.2 s. Capturas: las 9 páginas son idénticas al Checkpoint 3b, y este a la línea base YC salvo el selector y los bloques de Home decididos en R1.
-- [ ] **T30: Documentación y revisión** · S
+- [x] **T30: Documentación y revisión** · S
   - Acceptance: sección de arquitectura en el README (capas y regla de dependencias). Checklist de criterios de éxito del spec completo. Revisión con `/review`.
   - Verify: todos los criterios de `SPEC.md` tildados.
 
+  - Hecho (2026-10-12): el README tiene "How it works", deployment y "Architecture" (capas, regla de dependencias real y qué la verifica), y se sacaron los dos modos y el ETL; `.env.example` actualizado. Criterios de `SPEC.md` marcados con su estado real (dos parciales: tamaño de algunas páginas y +0.08/+0.19 s en dos tests cortos). Además: `_BASE_LAYOUT` unificado en `ui.charts` (4 páginas) y TC33–38 de `test_my_clusters.py` reescritos contra `make_cluster_names` (el espejo probaba el naming anterior al 2026-05-09). App real: textos idénticos al Checkpoint 4. Pendiente: la revisión con `/review` queda a decisión de Facu.
 ### ✅ Checkpoint final
 - [ ] Todos los criterios de éxito de `SPEC.md` cumplidos.
 - [ ] Facu aprueba el merge a `main`.

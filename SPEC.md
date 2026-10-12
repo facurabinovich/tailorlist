@@ -191,22 +191,24 @@ refactorizar:
 
 ## Criterios de éxito
 
-- [ ] Toda la funcionalidad del inventario sigue funcionando: tests en verde y recorrido manual en FC y YC.
-- [ ] Los 382 tests que hoy pasan siguen pasando, y los 9 que fallan quedan diagnosticados y resueltos o documentados.
-- [ ] Ningún test copia lógica de producción: todos importan el código real.
-- [ ] `core/` no importa `streamlit` (lo verifica un test), y sus funciones públicas tienen firmas tipadas y docstrings (base de las tools del agente).
-- [ ] Ninguna página importa de otra página.
-- [ ] Cada helper de UI y de formato *idéntico* está definido una sola vez. Las
+- [x] Toda la funcionalidad del inventario sigue funcionando: tests en verde y recorrido manual en FC y YC.
+      *(2026-10-12: FC se eliminó por decisión de Facu, la única excepción. YC: 977 tests en verde y recorridos reales en los Checkpoints 3b y 4 y en T30, idénticos a la línea base.)*
+- [x] Los 382 tests que hoy pasan siguen pasando, y los 9 que fallan quedan diagnosticados y resueltos o documentados. *(T1. Los tests que probaban comportamiento exclusivo de FC se eliminaron con FC.)*
+- [x] Ningún test copia lógica de producción: todos importan el código real. *(Los espejos se reemplazaron en T15–T25 y T30; varios se habían desviado: H10, H14, H17, H-T19-1 y los TC33–38 de naming. Quedan helpers triviales de formato de tarjetas en `test_playlist_comparison.py` y `cluster_pct` en `test_my_clusters.py`, que no corresponden a funciones de producción.)*
+- [x] `core/` no importa `streamlit` (lo verifica un test), y sus funciones públicas tienen firmas tipadas y docstrings (base de las tools del agente).
+- [x] Ninguna página importa de otra página.
+- [x] Cada helper de UI y de formato *idéntico* está definido una sola vez. *(T30: `_BASE_LAYOUT` en 4 páginas pasa a `ui.charts.BASE_LAYOUT`; la de Artist/Album es otro diseño. Un barrido por AST no encuentra funciones con cuerpo idéntico en módulos distintos.)* Las
       variantes que producen salidas distintas (p. ej. las 5 versiones de `kpi_card`)
       no se fusionan acá: quedan documentadas para el revamp visual.
-- [ ] `DEV_MODE` se lee en un único lugar, con un default único y documentado.
-- [ ] No queda SQL dentro de `pages/`.
-- [ ] Ninguna página supera ~500 líneas (hoy el máximo es 1977), salvo My Clusters y Cluster Results (ver pivot). Es un
+- [x] `DEV_MODE` se lee en un único lugar, con un default único y documentado.
+- [x] No queda SQL dentro de `pages/`.
+- [~] Ninguna página supera ~500 líneas (hoy el máximo es 1977), salvo My Clusters y Cluster Results (ver pivot). Es un
       objetivo, no una excusa para partir archivos de forma artificial: si una
       página queda en 600 líneas de render cohesivo, se justifica en el PR.
-- [ ] Ningún test pega contra una DB real (lo garantiza el `conftest`).
-- [ ] El render por página no empeora más de un 20 % respecto de la línea base.
-- [ ] `db/queries.py` queda eliminado o reducido a nada (sin shim de compatibilidad colgando).
+      *(Fin del refactor: Glossary 65, Contact 138, Enrich 236 y Audio DNA 425 quedan por debajo; Overview 591, Home 598, Comparison 600, Artist/Album 660 y Playlist Detail 744 quedan por encima, con lo que resta siendo figuras plotly y HTML propios de cada página, justificado en cada commit. Las de clusters no se adelgazan por el pivot.)*
+- [x] Ningún test pega contra una DB real (lo garantiza el `conftest`).
+- [~] El render por página no empeora más de un 20 % respecto de la línea base. *(T29: total +2 % y páginas pesadas entre −8 % y +1 %; Home +0.08 s y Cluster Results por categoría +0.19 s superan el 20 % relativo, aunque en términos absolutos son menos de 0.2 s. Ver `tasks/perf-baseline.md`.)*
+- [x] `db/queries.py` queda eliminado o reducido a nada (sin shim de compatibilidad colgando).
 
 ## Inventario de funcionalidad (no se puede romper)
 

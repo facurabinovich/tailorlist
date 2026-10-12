@@ -12,11 +12,12 @@ from unittest.mock import patch, MagicMock
 # KMeans memory-leak warning is a Windows/MKL env issue — not a code defect
 pytestmark = pytest.mark.filterwarnings("ignore::UserWarning:sklearn")
 
-CLUSTER_FEATURES = ["energy", "acousticness", "valence", "tempo", "danceability", "speechiness_log"]
+from config import CLUSTER_FEATURES
 
 from core.clustering import (
     verbose_description as _verbose_description,
     best_k as _best_k,
+    make_cluster_names,
 )
 from core.genres import (
     GENRE_FAMILIES,
@@ -34,37 +35,15 @@ def cluster_pct(count: int, total: int) -> float:
     return count / total * 100 if total else 0.0
 
 
-def _describe_centroid(c: dict) -> str:
-    """Mirrors the internal _describe() inside _make_names()."""
-    parts = []
-    energy          = c.get("energy", 0)
-    valence         = c.get("valence", 0)
-    acousticness    = c.get("acousticness", 0)
-    danceability    = c.get("danceability", 0)
-    tempo           = c.get("tempo", 0)
-    speechiness_log = c.get("speechiness_log", 0)
+# Neutral centroid: mid energy and no differentiator past its threshold.
+_NEUTRAL_CENTROID = {"energy": 0.55, "valence": 0.5, "acousticness": 0.1,
+                     "danceability": 0.5, "speechiness_log": 0.1, "tempo": 110}
 
-    if energy > 0.65:
-        parts.append("High Energy")
-    elif energy < 0.45:
-        parts.append("Low Energy")
-    else:
-        parts.append("Mid Energy")
-    if acousticness > 0.5:
-        parts.append("Acoustic")
-    if valence > 0.6:
-        parts.append("Happy")
-    elif valence < 0.4:
-        parts.append("Dark")
-    if danceability > 0.65:
-        parts.append("Danceable")
-    if speechiness_log > 0.25:
-        parts.append("Rap")
-    if tempo > 130:
-        parts.append("Fast")
-    elif tempo < 90:
-        parts.append("Slow")
-    return " · ".join(parts) if parts else "Mixed"
+
+def _name_against_neutral(overrides: dict) -> str:
+    """Name a centroid with make_cluster_names, next to a neutral one (z-scores need 2 rows)."""
+    rows = [{**_NEUTRAL_CENTROID, **overrides}, dict(_NEUTRAL_CENTROID)]
+    return make_cluster_names(pd.DataFrame(rows)[CLUSTER_FEATURES], 2).name_map[0]
 
 
 # ---------------------------------------------------------------------------
@@ -245,35 +224,32 @@ class TestVerboseDescription:
 
 
 # ---------------------------------------------------------------------------
-# TC-33 – TC-38  _describe_centroid
+# TC-33 – TC-38  cluster naming (core.clustering.make_cluster_names)
+# These used to exercise a local copy of the pre-2026-05-09 naming scheme
+# ("High Energy · Dark · Slow"), which production no longer has. They now
+# check the same signals against the real energy-first vocabulary.
 # ---------------------------------------------------------------------------
 
-class TestDescribeCentroid:
+class TestClusterNaming:
 
     def test_TC33_high_energy_label(self):
-        result = _describe_centroid({"energy": 0.8, "valence": 0.5, "acousticness": 0.1})
-        assert "High Energy" in result
+        assert _name_against_neutral({"energy": 0.8}) == "High Energy"
 
     def test_TC34_low_energy_label(self):
-        result = _describe_centroid({"energy": 0.3, "valence": 0.5, "acousticness": 0.1})
-        assert "Low Energy" in result
+        assert _name_against_neutral({"energy": 0.3}) == "Mellow"
 
     def test_TC35_acoustic_label(self):
-        result = _describe_centroid({"energy": 0.5, "acousticness": 0.7})
-        assert "Acoustic" in result
+        assert _name_against_neutral({"acousticness": 0.7}) == "Acoustic Sessions"
 
     def test_TC36_dark_label(self):
-        result = _describe_centroid({"energy": 0.5, "valence": 0.2})
-        assert "Dark" in result
+        assert _name_against_neutral({"valence": 0.2}) == "Moody Tunes"
 
-    def test_TC37_rap_when_speechiness_high(self):
-        result = _describe_centroid({"energy": 0.5, "speechiness_log": 0.3})
-        assert "Rap" in result
+    def test_TC37_hip_hop_when_speechiness_high(self):
+        assert _name_against_neutral({"speechiness_log": 0.3}) == "Hip-Hop Flow"
 
-    def test_TC38_all_zeros_gives_low_energy_dark_slow(self):
-        # energy=0 → Low Energy, valence=0 → Dark, tempo=0 → Slow
-        result = _describe_centroid({f: 0 for f in CLUSTER_FEATURES})
-        assert result == "Low Energy · Dark · Slow"
+    def test_TC38_all_zeros_is_low_energy_and_dark(self):
+        # energy=0 → low tier, valence=0 → dark differentiator
+        assert _name_against_neutral({f: 0 for f in CLUSTER_FEATURES}) == "Melancholic"
 
 
 # ---------------------------------------------------------------------------

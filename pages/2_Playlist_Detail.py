@@ -21,12 +21,7 @@ if not check_collection_mode():
 # ---------------------------------------------------------------------------
 # Config & helpers
 # ---------------------------------------------------------------------------
-_BASE_LAYOUT = dict(
-    plot_bgcolor="#121212",
-    paper_bgcolor="#121212",
-    font_color="#B3B3B3",
-    margin=dict(t=20, b=20, l=10, r=10),
-)
+from ui.charts import BASE_LAYOUT as _BASE_LAYOUT
 
 SPOTIFY_LOGO = spotify_icon_html(36)
 

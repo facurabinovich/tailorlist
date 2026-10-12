@@ -148,7 +148,7 @@ hacer la revisión final.
 - **H18 (T23):** Audio DNA: `format_extreme_value` muestra "< 0.001" para valores de
   ~0.00005–0.00015, y `extreme_tracks` devuelve filas NaN (tarjetas "nan") si una
   feature tiene menos de n valores. Se preservó. `_BASE_LAYOUT` sigue duplicado en
-  Playlist Detail y Comparison, y hay variantes inline en Overview y clusters.
+  Playlist Detail y Comparison, y hay variantes inline en Overview y clusters. **T30:** las 4 copias idénticas (Detail, Comparison, My Clusters, Cluster Results) usan `ui.charts.BASE_LAYOUT`; quedan la de Artist/Album (otro diseño) y las variantes inline.
 - **H19 (T25):** `playlist_set_key` usa `hash()`, que cambia por proceso: el backfill
   de la fila `enrichment_start` solo funciona dentro del mismo proceso. `confirm_estimate`
   cuenta un registro enriquecido sin id como "ya enriquecido". Se preservó (con test).
