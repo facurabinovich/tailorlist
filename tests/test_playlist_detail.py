@@ -670,7 +670,7 @@ def _make_full_mock_df():
         "popularity_raw":[80, 70, 60],
         "release_year":  [1990, 2000, 2010],
         "decade":        [1990, 2000, 2010],
-        "duration_raw":  [3.5, 4.0, 3.0],
+        "duration_raw":  [210000, 240000, 180000],   # YC delivers milliseconds
         "added_at":      ["2024-01-15", "2024-02-20", "2024-03-05"],
         "artist_genres": ["rock", "rock", "pop"],
         "energy":        [0.8, 0.7, 0.4],
@@ -684,33 +684,7 @@ def _make_full_mock_df():
     })
 
 
-def _make_mock_af_avg():
-    return pd.DataFrame({
-        "playlist_name": ["PL1"],
-        "energy":        [0.7],
-        "acousticness":  [0.3],
-        "valence":       [0.6],
-        "danceability":  [0.65],
-        "speechiness":   [0.05],
-        "instrumentalness": [0.02],
-        "liveness":      [0.12],
-        "tempo":         [120.0],
-    })
-
-
-def _make_mock_meta():
-    return pd.DataFrame({
-        "playlist_name": ["PL1"],
-        "total_tracks":  [3],
-        "followers":     [500],
-    })
-
-
-def _make_mock_monthly():
-    return pd.DataFrame({
-        "period": ["2024-01", "2024-02", "2024-03"],
-        "count":  [1, 1, 1],
-    })
+_YC_STATE = {"mode": "🔗 Your Collection", "uc_active": True}
 
 
 @pytest.mark.skipif(not APPTEST_AVAILABLE, reason="streamlit.testing not available")
@@ -722,14 +696,10 @@ class TestPlaylistDetailPageRender:
 
         at = AppTest.from_file("pages/2_Playlist_Detail.py", default_timeout=30)
 
-        if session_state:
-            for k, v in session_state.items():
-                at.session_state[k] = v
+        for k, v in {**_YC_STATE, **(session_state or {})}.items():
+            at.session_state[k] = v
 
         with patch("app_state.collection.get_all_tracks", return_value=mock_df), \
-             patch("db.queries.load_audio_features_by_playlist", return_value=_make_mock_af_avg()), \
-             patch("db.queries.load_playlist_meta", return_value=_make_mock_meta()), \
-             patch("db.queries.load_tracks_added_by_month", return_value=_make_mock_monthly()), \
              patch("ui.theme.inject_global_css"), \
              patch("ui.nav.inject_sidebar_nav"), \
              patch("ui.nav.check_collection_mode", return_value=True), \
@@ -744,10 +714,7 @@ class TestPlaylistDetailPageRender:
         assert not at.exception
 
     def test_TC54_yc_mode_banner_appears(self):
-        at = self._run_page(session_state={
-            "mode": "🔗 Your Collection",
-            "uc_active": True,
-        })
+        at = self._run_page()
         assert not at.exception
         info_texts = [i.value for i in at.info]
         assert any("Your Collection" in t for t in info_texts)
@@ -763,10 +730,7 @@ class TestPlaylistDetailPageRender:
         # Drop audio feature columns
         df = df.drop(columns=["energy", "valence", "danceability", "acousticness",
                                "speechiness", "instrumentalness", "liveness", "tempo"])
-        with patch("db.queries.load_audio_features_by_playlist", return_value=pd.DataFrame()), \
-             patch("db.queries.load_playlist_meta", return_value=_make_mock_meta()), \
-             patch("db.queries.load_tracks_added_by_month", return_value=_make_mock_monthly()):
-            at = self._run_page(mock_df=df)
+        at = self._run_page(mock_df=df)
         assert not at.exception
 
     def test_TC57_page_renders_with_no_duplicates(self):

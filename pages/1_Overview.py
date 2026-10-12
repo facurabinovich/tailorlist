@@ -3,7 +3,6 @@ import plotly.graph_objects as go
 import re
 import pandas as pd
 from app_state.collection import get_all_tracks
-from app_state.session import MODE_FC, MODE_YC
 from core.formatting import fmt_duration
 from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
 from ui.nav import inject_sidebar_nav
@@ -15,7 +14,7 @@ if not check_collection_mode():
     st.stop()
 
 # ---------------------------------------------------------------------------
-# Load & derive — works for both DB and Your Collection modes
+# Load & derive — Your Collection (session state)
 # ---------------------------------------------------------------------------
 df = get_all_tracks()
 
@@ -25,9 +24,6 @@ if "album_name" not in df.columns:
     st.rerun()
 
 deduped = df.drop_duplicates(subset="track_id").copy()
-
-mode               = st.session_state.get("mode", MODE_FC)
-is_your_collection = (mode == MODE_YC)
 
 # Tracks per playlist
 counts = (
@@ -92,12 +88,12 @@ total_playlist = df["playlist_name"].nunique()
 avg_popularity = deduped["popularity_raw"].mean() if "popularity_raw" in deduped.columns else None
 decade_mode    = int(deduped["decade"].mode()[0]) if "decade" in deduped.columns and deduped["decade"].notna().any() else None
 
-# duration_raw: DB = minutes float | Your Collection = milliseconds
+# duration_raw: Your Collection = milliseconds
 avg_duration = None
 if "duration_raw" in deduped.columns:
     raw = deduped["duration_raw"].mean()
     if pd.notna(raw):
-        avg_duration = (raw / 60000) if is_your_collection else raw
+        avg_duration = raw / 60000
 
 import datetime
 listening_age = None
@@ -174,7 +170,7 @@ st.markdown("<hr style='border-color:#333;margin-top:16px;margin-bottom:24px;'>"
 # ---------------------------------------------------------------------------
 # Active collection banner
 # ---------------------------------------------------------------------------
-if st.session_state.get("mode") == MODE_YC and st.session_state.get("uc_active"):
+if st.session_state.get("uc_active"):
     n_pl  = df["playlist_name"].nunique()
     st.info(f"🎵 Viewing: Your Collection — {total_tracks:,} unique tracks across {n_pl} playlists (duplicates across playlists not counted)")
 

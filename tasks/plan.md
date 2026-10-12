@@ -109,7 +109,7 @@ hacer la revisión final.
   `get_audio_features_by_playlist()` no tienen ningún llamador (verificado con
   grep). Además, `get_cluster_data()` hace `st.cache_data.clear()` en cada
   llamada FC: si una tool lo usara en loop, borraría todas las cachés. Propuesta:
-  eliminarlas en T28, con aprobación de Facu (es código muerto, no funcionalidad).
+  eliminarlas en T28, con aprobación de Facu (es código muerto, no funcionalidad). **RESUELTO en R2** (eliminadas junto con la rama DB de `app_state/collection.py`).
 - **H9:** `core/export.spotlistr_lines` falla con `AttributeError` si un track
   tiene `artists=None`, igual que el código original. Pendiente para la tool
   `export_playlist` en F1: no debería romperse por un dato faltante.

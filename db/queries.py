@@ -9,7 +9,7 @@ from core.tracks import add_artist_display as _add_artist_display, parse_release
 # Temporary reverse dependency db -> app_state (the session-aware wrappers live in
 # app_state/collection.py since T12); removed in T28 together with this module.
 from app_state.collection import (  # noqa: F401
-    get_tracks, get_all_tracks, get_cluster_data, get_audio_features_by_playlist,
+    get_tracks, get_all_tracks,
 )
 from db.tracks import (
     _SECONDARY_ARTISTS_SUBQUERY, _BASE_SQL, _BASE_SQL_ALL,

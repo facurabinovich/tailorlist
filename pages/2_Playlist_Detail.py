@@ -5,9 +5,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 from app_state.collection import get_all_tracks
-from db.queries import load_audio_features_by_playlist, load_playlist_meta, load_tracks_added_by_month
 from config import CLUSTER_FEATURES
-from app_state.session import MODE_YC
 from core.formatting import fmt_duration
 
 from ui.theme import inject_global_css
@@ -60,24 +58,20 @@ def highlight_card(icon: str, label: str, track: str, artist: str, badge: str) -
 # ---------------------------------------------------------------------------
 df = get_all_tracks()
 
-if st.session_state.get("mode") != MODE_YC:
-    af_avg = load_audio_features_by_playlist()
-    meta   = load_playlist_meta()
-else:
-    # Derive af_avg from df (audio features come from Spotify enrichment)
-    _af_cols = [c for c in ["energy", "acousticness", "valence", "danceability",
-                             "speechiness", "instrumentalness", "liveness", "tempo"]
-                if c in df.columns]
-    af_avg = (
-        df.groupby("playlist_name")[_af_cols]
-        .mean()
-        .reset_index()
-    ) if _af_cols else pd.DataFrame()
-    meta = df.groupby("playlist_name").size().reset_index(name="total_tracks")
-    _uc_playlists = st.session_state.get("uc_playlists", [])
-    meta["followers"] = meta["playlist_name"].apply(
-        lambda name: next((p.get("followers", 0) for p in _uc_playlists if p["name"] == name), 0)
-    )
+# Derive af_avg from df (audio features come from Spotify enrichment)
+_af_cols = [c for c in ["energy", "acousticness", "valence", "danceability",
+                         "speechiness", "instrumentalness", "liveness", "tempo"]
+            if c in df.columns]
+af_avg = (
+    df.groupby("playlist_name")[_af_cols]
+    .mean()
+    .reset_index()
+) if _af_cols else pd.DataFrame()
+meta = df.groupby("playlist_name").size().reset_index(name="total_tracks")
+_uc_playlists = st.session_state.get("uc_playlists", [])
+meta["followers"] = meta["playlist_name"].apply(
+    lambda name: next((p.get("followers", 0) for p in _uc_playlists if p["name"] == name), 0)
+)
 
 # ---------------------------------------------------------------------------
 # Header
@@ -99,7 +93,7 @@ st.markdown("<hr style='border-color:#333;margin-top:16px;margin-bottom:20px;'>"
 # ---------------------------------------------------------------------------
 # Active collection banner
 # ---------------------------------------------------------------------------
-if st.session_state.get("mode") == MODE_YC and st.session_state.get("uc_active"):
+if st.session_state.get("uc_active"):
     n_unique = df["track_id"].nunique()
     n_pl     = df["playlist_name"].nunique()
     st.info(f"🎵 Viewing: Your Collection — {n_unique:,} unique tracks across {n_pl} playlists (duplicates across playlists not counted)")
@@ -111,8 +105,8 @@ playlists = sorted(df["playlist_name"].unique().tolist())
 selected  = st.selectbox("Choose a playlist", playlists, label_visibility="collapsed")
 
 pl_df   = df[df["playlist_name"] == selected].copy()
-# Normalize duration to minutes (YC delivers milliseconds, FC delivers minutes)
-if "duration_raw" in pl_df.columns and st.session_state.get("mode") == MODE_YC:
+# Normalize duration to minutes (YC delivers milliseconds)
+if "duration_raw" in pl_df.columns:
     pl_df["duration_raw"] = pl_df["duration_raw"] / 60000
 pl_meta = meta[meta["playlist_name"] == selected].iloc[0]
 
@@ -279,7 +273,7 @@ st.markdown("<hr style='border-color:#333;margin-top:24px;margin-bottom:24px;'>"
 
 # Raw per-playlist data with real Spotify IDs (used for duplicate detection).
 # Rebuilt from session state so skipped/failed tracks use their real Spotify IDs, not synthetic ones.
-if st.session_state.get("mode") == MODE_YC and st.session_state.get("uc_active"):
+if st.session_state.get("uc_active"):
     _pl_all_raw = [
         t for t in (
             st.session_state.get("uc_enriched", [])
@@ -439,13 +433,10 @@ if _pl_has_audio:
     )
     st.plotly_chart(fig_radar, use_container_width=True)
 else:
-    if st.session_state.get("mode") == MODE_YC:
-        st.info(
-            "Audio features aren't available for this playlist — "
-            "these tracks weren't found in the audio database during enrichment."
-        )
-    else:
-        st.info("Audio features haven't been loaded for this playlist yet.")
+    st.info(
+        "Audio features aren't available for this playlist — "
+        "these tracks weren't found in the audio database during enrichment."
+    )
 
 st.markdown("<hr style='border-color:#333;margin-top:24px;margin-bottom:24px;'>", unsafe_allow_html=True)
 
@@ -708,20 +699,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if st.session_state.get("mode") != MODE_YC:
-    monthly_raw = load_tracks_added_by_month(selected)
+if "added_at" in pl_df.columns:
+    _monthly = (
+        pl_df.assign(_month=pd.to_datetime(pl_df["added_at"]).dt.to_period("M").astype(str))
+        .groupby("_month")
+        .size()
+        .reset_index(name="count")
+    )
+    _monthly.columns = ["period", "count"]
+    monthly_raw = _monthly
 else:
-    if "added_at" in pl_df.columns:
-        _monthly = (
-            pl_df.assign(_month=pd.to_datetime(pl_df["added_at"]).dt.to_period("M").astype(str))
-            .groupby("_month")
-            .size()
-            .reset_index(name="count")
-        )
-        _monthly.columns = ["period", "count"]
-        monthly_raw = _monthly
-    else:
-        monthly_raw = pd.DataFrame()
+    monthly_raw = pd.DataFrame()
 
 if monthly_raw.empty or len(monthly_raw) <= 1:
     # Check if it's the "added all at once" scenario vs genuinely missing data

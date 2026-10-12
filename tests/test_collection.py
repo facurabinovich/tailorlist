@@ -359,3 +359,50 @@ def test_get_tracks_never_includes_skipped_or_failed(monkeypatch):
     })
     assert len(get_tracks()) == 7
     assert len(get_all_tracks()) == 10
+
+
+@pytest.mark.parametrize("fn", [get_tracks, get_all_tracks])
+@pytest.mark.parametrize("state", [
+    {},
+    {"mode": MODE_YC},
+    {"mode": MODE_YC, "uc_active": True},
+    {"mode": MODE_YC, "uc_active": True, "uc_enriched": []},
+    {"uc_enriched": [{"id": "x", "name": "n", "artists": "a", "playlist_name": "P"}]},
+], ids=["empty", "mode-only", "active-no-enriched", "active-empty-enriched", "enriched-not-active"])
+def test_no_collection_returns_empty_frame_without_touching_db(monkeypatch, fn, state):
+    """Without an active enriched collection the loaders return an empty frame, never the DB.
+
+    conftest makes engine creation raise, so any DB access would fail this test.
+    """
+    import db.connection
+
+    def boom(*a, **k):
+        raise AssertionError("collection loaders must not touch the database")
+
+    monkeypatch.setattr(db.connection, "get_engine", boom)
+    monkeypatch.setattr(st, "session_state", dict(state))
+    df = fn()
+    assert df.empty
+    assert {"track_id", "track_name", "artist_name", "playlist_name"} <= set(df.columns)
+    assert df["playlist_name"].unique().tolist() == []
+
+
+def test_collection_module_does_not_import_db():
+    import app_state.collection as collection
+    assert not hasattr(collection, "load_tracks")
+    assert not hasattr(collection, "load_all_tracks")
+    assert not hasattr(collection, "get_cluster_data")
+    assert not hasattr(collection, "get_audio_features_by_playlist")
+
+
+def test_active_collection_without_audio_features_still_lists_its_tracks(monkeypatch):
+    """Enrichment can finish with no track found in ReccoBeats: uc_active is set and
+    uc_enriched is empty. get_all_tracks() still shows the skipped/failed tracks;
+    get_tracks() (audio features only) is empty."""
+    monkeypatch.setattr(st, "session_state", {
+        "uc_active": True, "uc_enriched": [],
+        "uc_skipped": [{"id": "s1", "name": "Song", "artists": "Artist", "playlist_name": "P"}],
+        "uc_failed": [],
+    })
+    assert get_all_tracks()["track_id"].tolist() == ["s1"]
+    assert get_tracks().empty

@@ -4,9 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from app_state.collection import get_all_tracks
-from db.queries import load_audio_features_by_playlist, load_playlist_meta
 from config import AUDIO_FEATURES, NORMALIZED_FEATURES
-from app_state.session import MODE_YC
 from core.formatting import fmt_duration
 
 from ui.theme import inject_global_css
@@ -52,26 +50,22 @@ st.markdown(
 # ---------------------------------------------------------------------------
 # Active collection banner
 # ---------------------------------------------------------------------------
-if st.session_state.get("mode") == MODE_YC and st.session_state.get("uc_active"):
+if st.session_state.get("uc_active"):
     n_unique = df["track_id"].nunique()
     n_pl     = df["playlist_name"].nunique()
     st.info(f"🎵 Viewing: Your Collection — {n_unique:,} unique tracks across {n_pl} playlists (duplicates across playlists not counted)")
 # ---------------------------------------------------------------------------
 
-if st.session_state.get("mode") == MODE_YC:
-    meta = pd.DataFrame(st.session_state.get("uc_playlists", []))
-    meta = meta.rename(columns={"name": "playlist_name", "track_count": "total_tracks"})
-    _af_cols = [c for c in ["energy", "acousticness", "valence", "danceability",
-                             "speechiness", "instrumentalness", "liveness", "tempo"]
-                if c in df.columns]
-    af_avg = (
-        df.groupby("playlist_name")[_af_cols]
-        .mean()
-        .reset_index()
-    ) if _af_cols else pd.DataFrame()
-else:
-    meta   = load_playlist_meta()
-    af_avg = load_audio_features_by_playlist()
+meta = pd.DataFrame(st.session_state.get("uc_playlists", []))
+meta = meta.rename(columns={"name": "playlist_name", "track_count": "total_tracks"})
+_af_cols = [c for c in ["energy", "acousticness", "valence", "danceability",
+                         "speechiness", "instrumentalness", "liveness", "tempo"]
+            if c in df.columns]
+af_avg = (
+    df.groupby("playlist_name")[_af_cols]
+    .mean()
+    .reset_index()
+) if _af_cols else pd.DataFrame()
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -168,31 +162,25 @@ def _fmt_dupe_playlists(pl_list: list) -> str:
 
 # Build raw per-occurrence data (real Spotify IDs) shared by both duplicate sections.
 # Use raw session state in YC mode so skipped/failed tracks retain their real Spotify IDs.
-_is_yc = st.session_state.get("mode") == MODE_YC and st.session_state.get("uc_active")
-if _is_yc:
-    _all_uc_raw = (
-        st.session_state.get("uc_enriched", [])
-        + st.session_state.get("uc_skipped", [])
-        + st.session_state.get("uc_failed", [])
+_all_uc_raw = (
+    st.session_state.get("uc_enriched", [])
+    + st.session_state.get("uc_skipped", [])
+    + st.session_state.get("uc_failed", [])
+)
+_raw_all = pd.DataFrame(_all_uc_raw)
+if not _raw_all.empty:
+    _dupe_src   = _raw_all[["id", "playlist_name"]].rename(columns={"id": "track_id"})
+    _track_info = (
+        _raw_all.rename(columns={"id": "track_id", "name": "track_name", "artists": "artist_display"})
+        .drop_duplicates("track_id")[["track_id", "track_name", "artist_display"]]
     )
-    _raw_all = pd.DataFrame(_all_uc_raw)
-    if not _raw_all.empty:
-        _dupe_src   = _raw_all[["id", "playlist_name"]].rename(columns={"id": "track_id"})
-        _track_info = (
-            _raw_all.rename(columns={"id": "track_id", "name": "track_name", "artists": "artist_display"})
-            .drop_duplicates("track_id")[["track_id", "track_name", "artist_display"]]
-        )
-        _ver_src = _raw_all[["id", "name", "artists", "playlist_name"]].rename(
-            columns={"id": "track_id", "name": "track_name", "artists": "artist_name"}
-        )
-    else:
-        _dupe_src   = pd.DataFrame(columns=["track_id", "playlist_name"])
-        _track_info = pd.DataFrame(columns=["track_id", "track_name", "artist_display"])
-        _ver_src    = pd.DataFrame(columns=["track_id", "track_name", "artist_name", "playlist_name"])
+    _ver_src = _raw_all[["id", "name", "artists", "playlist_name"]].rename(
+        columns={"id": "track_id", "name": "track_name", "artists": "artist_name"}
+    )
 else:
-    _dupe_src   = df[["track_id", "playlist_name"]]
-    _track_info = df.drop_duplicates("track_id")[["track_id", "track_name", "artist_display"]]
-    _ver_src    = df[["track_id", "track_name", "artist_name", "playlist_name"]].copy()
+    _dupe_src   = pd.DataFrame(columns=["track_id", "playlist_name"])
+    _track_info = pd.DataFrame(columns=["track_id", "track_name", "artist_display"])
+    _ver_src    = pd.DataFrame(columns=["track_id", "track_name", "artist_name", "playlist_name"])
 
 _dupe_src = _dupe_src[_dupe_src["track_id"].notna() & (_dupe_src["track_id"] != "")]
 _ver_src  = _ver_src[_ver_src["track_id"].notna() & (_ver_src["track_id"] != "")]
@@ -301,8 +289,7 @@ st.markdown("<p style='color:#B3B3B3; margin-top:-8px; font-size:0.85rem;'>The m
 
 if "duration_raw" in df.columns:
     dur_df = df.copy()
-    if st.session_state.get("mode") == MODE_YC:
-        dur_df["duration_raw"] = dur_df["duration_raw"] / 60000
+    dur_df["duration_raw"] = dur_df["duration_raw"] / 60000
 
     dur          = dur_df.groupby("playlist_name")["duration_raw"].agg(["mean", "min", "max"]).reset_index()
     dur.columns  = ["playlist_name", "avg_min", "min_min", "max_min"]

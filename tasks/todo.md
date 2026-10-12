@@ -1,6 +1,6 @@
 # Tareas: refactor de arquitectura
 
-> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). R1 hecha (2026-10-12); sigue **R2**. Suite: 593 tests, ~3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H8 (se resuelve en R2) y H9.
+> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). R1 y R2 hechas (2026-10-12); sigue **R3**. Suite: 600 tests, ~3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H9 (H8 resuelto en R2).
 
 Plan: [`plan.md`](plan.md) · Spec: [`SPEC.md`](../SPEC.md)
 
@@ -154,7 +154,8 @@ Arranca después del Checkpoint 3, que valida las Fases 1–3 con FC todavía pr
   - Acceptance: sin selector de modo en la navegación. `st.session_state["mode"]` deja de decidir nada, y la app siempre trabaja con la colección del usuario. Sale `MODE_FC`, y `MODE_YC` solo queda si algo lo sigue necesitando. Home ya no tiene la sección "DEMO COLLECTION MODE". El deep-link `?mode=` se ignora sin error. La auto-carga de `dev_collection.json` en `DEV_MODE=1` sigue igual, y lo mismo la recuperación de sesión (`?sid=`/cookie), `?playlists=`, enrich y borrar sesión.
   - Verify: suite (los smoke tests FC se eliminan o se migran a YC); app real: Home sin colección muestra el input de URL; con dev collection, todo como en la línea base YC.
   - Files: `app_state/session.py`, `ui/nav.py`, `pages/0_home.py`, tests.
-- [ ] **R2: Páginas de datos solo YC** · M
+- [x] **R2: Páginas de datos solo YC** · M
+  - Hecho (2026-10-12): páginas 1–5 sin ramas FC; `app_state/collection.py` solo lee la sesión (sin colección devuelve un frame vacío, nunca la DB) y se borraron los wrappers de H8. `get_all_tracks()` también lista los tracks cuando ninguno tiene audio features (enrich terminado con `uc_enriched` vacío; antes caía a la DB). `check_collection_mode` sigue mirando el modo hasta R3. App real: los 9 textos y capturas son idénticos a R1. Suite: 600 en ambos órdenes.
   - Acceptance: Overview, Playlist Detail, Artist/Album, Comparison y Audio DNA sin ramas FC. `app_state/collection.py` sin la rama DB, y H8 (los wrappers sin uso) se elimina. `check_collection_mode` sigue mostrando "No collection yet" sin colección.
   - Verify: suite; los textos YC de esas páginas son idénticos a la línea base.
   - Files: las 5 páginas, `app_state/collection.py`, tests.

@@ -8,7 +8,6 @@ from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
 from ui.nav import inject_sidebar_nav, check_collection_mode
 from core.formatting import fmt_duration
 from app_state.collection import get_all_tracks
-from app_state.session import MODE_YC
 
 # ── Boilerplate ───────────────────────────────────────────────────────────────
 inject_global_css()
@@ -214,12 +213,8 @@ min_threshold = MIN_TRACKS_ARTIST if is_artist_mode else MIN_TRACKS_ALBUM
 enough = track_count >= min_threshold
 
 # ── Duration: normalise YC milliseconds → minutes ────────────────────────────
-is_yc = st.session_state.get("mode") == MODE_YC
 if "duration_raw" in sel_df.columns:
-    if is_yc:
-        sel_df["duration_min"] = sel_df["duration_raw"] / 60_000
-    else:
-        sel_df["duration_min"] = sel_df["duration_raw"]
+    sel_df["duration_min"] = sel_df["duration_raw"] / 60_000
 
 # ── Header card ───────────────────────────────────────────────────────────────
 display_name = selected if is_artist_mode else f"{pair_row['album_name']} · {pair_row['artist_name']}"
@@ -546,13 +541,10 @@ if len(available_radar) >= 3:
     if not enough:
         st.info("Not enough tracks to show audio analysis — add more playlists to get richer insights.")
     elif n_enriched == 0:
-        if is_yc:
-            st.info(
-                "Audio features aren't available for these tracks — "
-                "they weren't found in the audio database during enrichment."
-            )
-        else:
-            st.info("Audio features haven't been loaded for these tracks yet.")
+        st.info(
+            "Audio features aren't available for these tracks — "
+            "they weren't found in the audio database during enrichment."
+        )
     else:
         if n_enriched < len(sel_df):
             st.caption(f"ℹ️ Based on {n_enriched} of {len(sel_df)} tracks — the rest haven't been enriched yet.")

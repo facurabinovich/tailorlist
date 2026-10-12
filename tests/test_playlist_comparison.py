@@ -587,20 +587,23 @@ except ImportError:
     APPTEST_AVAILABLE = False
 
 
-def _make_mock_meta():
-    return pd.DataFrame({
-        "playlist_name": ["PL1", "PL2"],
-        "total_tracks":  [10, 8],
-        "followers":     [500, 200],
-    })
+YC_MODE = "🔗 Your Collection"
 
 
-def _make_mock_af_avg():
-    return pd.DataFrame({
-        "playlist_name": ["PL1", "PL2"],
-        **{f: [0.7, 0.4] for f in NORMALIZED_FEATURES},
-        "tempo":         [120.0, 95.0],
-    })
+def _make_uc_playlists(followers=(500, 200)):
+    """uc_playlists session records: the page builds its playlist metadata from them."""
+    return [
+        {"name": "PL1", "track_count": 10, "followers": followers[0]},
+        {"name": "PL2", "track_count": 8, "followers": followers[1]},
+    ]
+
+
+def _yc_state(uc_playlists=None):
+    return {
+        "mode": YC_MODE,
+        "uc_active": True,
+        "uc_playlists": uc_playlists if uc_playlists is not None else _make_uc_playlists(),
+    }
 
 
 def _make_full_mock_df():
@@ -616,7 +619,7 @@ def _make_full_mock_df():
                 "popularity_raw": base_pop + i,
                 "release_year":   2000 + i,
                 "decade":         2000,
-                "duration_raw":   3.5 + i * 0.1,
+                "duration_raw":   int((3.5 + i * 0.1) * 60000),  # YC delivers milliseconds
                 "added_at":       base_date,
                 "artist_genres":  "rock, pop",
                 **{f: 0.5 + i * 0.01 for f in NORMALIZED_FEATURES},
@@ -632,12 +635,9 @@ class TestPlaylistComparisonPageRender:
         if mock_df is None:
             mock_df = _make_full_mock_df()
         at = AppTest.from_file("pages/4_Playlist_Comparison.py", default_timeout=30)
-        if session_state:
-            for k, v in session_state.items():
-                at.session_state[k] = v
+        for k, v in {**_yc_state(), **(session_state or {})}.items():
+            at.session_state[k] = v
         with patch("app_state.collection.get_all_tracks", return_value=mock_df), \
-             patch("db.queries.load_playlist_meta", return_value=_make_mock_meta()), \
-             patch("db.queries.load_audio_features_by_playlist", return_value=_make_mock_af_avg()), \
              patch("ui.theme.inject_global_css"), \
              patch("ui.nav.inject_sidebar_nav"), \
              patch("ui.nav.check_collection_mode", return_value=True), \
@@ -660,8 +660,6 @@ class TestPlaylistComparisonPageRender:
 
     def test_TC56_yc_mode_renders_without_exception(self):
         at = self._run_page(session_state={
-            "mode": "🔗 Your Collection",
-            "uc_active": True,
             "uc_playlists": [
                 {"name": "PL1", "track_count": 4, "followers": 100},
                 {"name": "PL2", "track_count": 4, "followers": 50},
@@ -670,12 +668,10 @@ class TestPlaylistComparisonPageRender:
         assert not at.exception
 
     def test_TC57_no_followers_renders_gracefully(self):
-        meta_no_followers = _make_mock_meta().copy()
-        meta_no_followers["followers"] = 0
         at = AppTest.from_file("pages/4_Playlist_Comparison.py", default_timeout=30)
+        for k, v in _yc_state(_make_uc_playlists(followers=(0, 0))).items():
+            at.session_state[k] = v
         with patch("app_state.collection.get_all_tracks", return_value=_make_full_mock_df()), \
-             patch("db.queries.load_playlist_meta", return_value=meta_no_followers), \
-             patch("db.queries.load_audio_features_by_playlist", return_value=_make_mock_af_avg()), \
              patch("ui.theme.inject_global_css"), \
              patch("ui.nav.inject_sidebar_nav"), \
              patch("ui.nav.check_collection_mode", return_value=True), \
@@ -687,9 +683,9 @@ class TestPlaylistComparisonPageRender:
     def test_TC58_no_audio_features_renders_gracefully(self):
         df = _make_full_mock_df().drop(columns=NORMALIZED_FEATURES + ["tempo"], errors="ignore")
         at = AppTest.from_file("pages/4_Playlist_Comparison.py", default_timeout=30)
+        for k, v in _yc_state().items():
+            at.session_state[k] = v
         with patch("app_state.collection.get_all_tracks", return_value=df), \
-             patch("db.queries.load_playlist_meta", return_value=_make_mock_meta()), \
-             patch("db.queries.load_audio_features_by_playlist", return_value=pd.DataFrame()), \
              patch("ui.theme.inject_global_css"), \
              patch("ui.nav.inject_sidebar_nav"), \
              patch("ui.nav.check_collection_mode", return_value=True), \

@@ -16,7 +16,6 @@ import plotly.graph_objects as go
 
 from app_state.collection import get_tracks
 from config import NORMALIZED_FEATURES, AUDIO_FEATURES
-from app_state.session import MODE_FC, MODE_YC
 from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
 from ui.nav import inject_sidebar_nav, check_collection_mode
 
@@ -71,13 +70,6 @@ inject_sidebar_nav("Audio DNA")
 if not check_collection_mode():
     st.stop()
 
-# Clear playlist filter when mode switches so stale keys don't corrupt the multiselect
-_current_mode = st.session_state.get("mode", MODE_FC)
-if st.session_state.get("_audio_dna_mode") != _current_mode:
-    st.session_state["_audio_dna_mode"] = _current_mode
-    st.session_state.pop("global_filter_fc", None)
-    st.session_state.pop("global_filter_yc", None)
-
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.markdown(page_brand_html(), unsafe_allow_html=True)
 st.markdown(
@@ -98,31 +90,29 @@ with st.spinner("Loading audio data…"):
 playlists = sorted(df_all["playlist_name"].unique())
 pl_colors = _playlist_color_map(playlists)
 
-is_yc = st.session_state.get("mode") == MODE_YC
-if is_yc:
-    # Unique counts via set operations on Spotify track IDs
-    _enriched_ids_dna = {t["id"] for t in st.session_state.get("uc_enriched", []) if t.get("id")}
-    _unenriched_dna   = st.session_state.get("uc_skipped", []) + st.session_state.get("uc_failed", [])
-    _unenriched_unique_dna = {t["id"] for t in _unenriched_dna if t.get("id")} - _enriched_ids_dna
-    _n_unique_with_af  = len(_enriched_ids_dna)
-    _n_unique_without_af = len(_unenriched_unique_dna)
-    _n_unique_total    = _n_unique_with_af + _n_unique_without_af
-    _n_pl = df_all["playlist_name"].nunique() if not df_all.empty else 0
-    if _n_unique_without_af > 0:
-        st.warning(
-            f"🎵 **Your Collection** — {_n_unique_with_af} of {_n_unique_total} unique tracks across "
-            f"{_n_pl} playlist(s) have audio features and appear in this analysis. "
-            f"**{_n_unique_without_af} unique track(s) could not be enriched** (API lookup failed or track not found) "
-            f"and are excluded from all charts."
-        )
-    else:
-        st.info(
-            f"🎵 **Your Collection** — {_n_unique_with_af} unique tracks across {_n_pl} playlist(s) · "
-            f"all tracks successfully enriched."
-        )
+# Unique counts via set operations on Spotify track IDs
+_enriched_ids_dna = {t["id"] for t in st.session_state.get("uc_enriched", []) if t.get("id")}
+_unenriched_dna   = st.session_state.get("uc_skipped", []) + st.session_state.get("uc_failed", [])
+_unenriched_unique_dna = {t["id"] for t in _unenriched_dna if t.get("id")} - _enriched_ids_dna
+_n_unique_with_af  = len(_enriched_ids_dna)
+_n_unique_without_af = len(_unenriched_unique_dna)
+_n_unique_total    = _n_unique_with_af + _n_unique_without_af
+_n_pl = df_all["playlist_name"].nunique() if not df_all.empty else 0
+if _n_unique_without_af > 0:
+    st.warning(
+        f"🎵 **Your Collection** — {_n_unique_with_af} of {_n_unique_total} unique tracks across "
+        f"{_n_pl} playlist(s) have audio features and appear in this analysis. "
+        f"**{_n_unique_without_af} unique track(s) could not be enriched** (API lookup failed or track not found) "
+        f"and are excluded from all charts."
+    )
+else:
+    st.info(
+        f"🎵 **Your Collection** — {_n_unique_with_af} unique tracks across {_n_pl} playlist(s) · "
+        f"all tracks successfully enriched."
+    )
 
 # ── Global filter — drives ALL sections ───────────────────────────────────────
-_pl_key = "global_filter_yc" if _current_mode == MODE_YC else "global_filter_fc"
+_pl_key = "global_filter_yc"
 with st.expander("🎛️ Filter playlists", expanded=False):
     selected_pl = st.multiselect(
         "Select playlists",
@@ -137,13 +127,10 @@ df     = df_flt.drop_duplicates(subset="track_id")
 
 _has_audio_data = any(f in df.columns and df[f].notna().any() for f in RADAR_FEATS)
 if not _has_audio_data:
-    if is_yc:
-        st.info(
-            "Audio features aren't available for any of these tracks — "
-            "none were found in the audio database during enrichment."
-        )
-    else:
-        st.info("No audio feature data found for this collection.")
+    st.info(
+        "Audio features aren't available for any of these tracks — "
+        "none were found in the audio database during enrichment."
+    )
     st.stop()
 
 # ── Feature legend ─────────────────────────────────────────────────────────────

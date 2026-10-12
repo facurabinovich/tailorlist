@@ -170,9 +170,18 @@ PAGE_EXPECTATIONS = [
 ]
 
 
-@pytest.mark.parametrize("mode", [FC, YC], ids=["FC", "YC"])
-@pytest.mark.parametrize("page,snippets,min_charts", PAGE_EXPECTATIONS,
-                         ids=[p[0] for p in PAGE_EXPECTATIONS])
+# Pages 1-5 are YC-only since R2. FC stays for the pages R3 still has to migrate
+# (and for the mode-agnostic ones) until R3 removes it.
+_YC_ONLY_PAGES = {"1_Overview", "2_Playlist_Detail", "3_Artist_Album",
+                  "4_Playlist_Comparison", "5_Audio_DNA"}
+_RENDER_PARAMS = [
+    pytest.param(page, snippets, min_charts, mode, id=f"{page}-{'FC' if mode == FC else 'YC'}")
+    for page, snippets, min_charts in PAGE_EXPECTATIONS
+    for mode in ([YC] if page in _YC_ONLY_PAGES else [FC, YC])
+]
+
+
+@pytest.mark.parametrize("page,snippets,min_charts,mode", _RENDER_PARAMS)
 def test_page_renders(page, snippets, min_charts, mode):
     at = _page(page, mode).run()
     assert not at.exception, at.exception
