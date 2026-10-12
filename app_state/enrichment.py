@@ -33,7 +33,7 @@ def track_enrichment_start() -> None:
     """
     if not is_dev_mode() and not st.session_state.get("_enrichment_start_tracked"):
         try:
-            from db.queries import track_event
+            from db.analytics import track_event
             track_event(
                 event      = "enrichment_start",
                 page       = "Enrich",
@@ -92,7 +92,7 @@ def complete_enrichment() -> None:
     st.session_state.pop("_enrich_start_time", None)
 
     import uuid
-    from db.queries import save_uc_session
+    from db.sessions import save_uc_session
 
     # Generate session ID if not already set
     if not st.session_state.get("uc_session_id"):
@@ -115,7 +115,7 @@ def complete_enrichment() -> None:
     # Track enrichment completion
     if not is_dev_mode():
         try:
-            from db.queries import track_event
+            from db.analytics import track_event
             from db.analytics import backfill_enrichment_session
             _real_sid = st.session_state.get("uc_session_id")
             track_event(
@@ -166,7 +166,7 @@ def cancel_enrichment() -> None:
         _restored = False
         if _prev_sid:
             try:
-                from db.queries import load_uc_session
+                from db.sessions import load_uc_session
                 _db_session = load_uc_session(_prev_sid)
                 if _db_session:
                     st.session_state["uc_enriched"]          = _db_session["enriched"]

@@ -64,3 +64,23 @@ def test_core_public_functions_are_typed_and_documented(fn):
     assert not missing, f"{fn.name}: unannotated params {missing}"
     assert fn.returns is not None, f"{fn.name}: missing return annotation"
     assert ast.get_docstring(fn), f"{fn.name}: missing docstring"
+
+
+@pytest.mark.parametrize("name", ["db/queries.py", "utils.py", "spotify_client.py"])
+def test_compat_shims_are_gone(name):
+    assert not (ROOT / name).exists(), f"{name} (T28 compatibility shim) must stay deleted"
+
+
+def test_nothing_imports_removed_shims():
+    offenders = []
+    for folder in ("pages", "app_state", "ui", "core", "spotify", "db", "tests"):
+        for path in _py_files(folder):
+            for node in ast.walk(_parse(path)):
+                mods = []
+                if isinstance(node, ast.Import):
+                    mods = [a.name for a in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                    mods = [node.module] + [f"{node.module}.{a.name}" for a in node.names]
+                if any(m in {"utils", "spotify_client", "db.queries"} for m in mods):
+                    offenders.append(f"{path.relative_to(ROOT)}:{node.lineno}")
+    assert not offenders, f"imports of removed shims: {offenders}"

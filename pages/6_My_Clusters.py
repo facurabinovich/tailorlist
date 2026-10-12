@@ -29,8 +29,8 @@ from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
 from ui.nav import inject_sidebar_nav, check_collection_mode
 from ui.components import cluster_card, info_box, hr
 
-# Functions in this module are imported by _Cluster_Results.py
-# Do not remove helper functions even if they appear unused here
+# Pages never import each other: logic shared with _Cluster_Results.py lives in core/ and app_state/.
+# (Cluster Results does not import from this page.)
 
 inject_global_css()
 inject_sidebar_nav("My Clusters")
@@ -47,7 +47,7 @@ if st.session_state.pop("_start_fresh", False):
         "_unmatched_done_ids", "_total_assigned_count",
     ]:
         st.session_state.pop(_key, None)
-from db.queries import load_cluster_progress, save_cluster_progress, reset_cluster_progress
+from db.progress import load_cluster_progress, save_cluster_progress, reset_cluster_progress
 user_key = st.session_state.get("uc_session_id", "anonymous")
 
 _progress = {}
@@ -1101,7 +1101,7 @@ if submitted:
         }
         if not is_dev_mode():
             try:
-                from db.queries import track_event as _te
+                from db.analytics import track_event as _te
                 _cr = st.session_state["clustering_results"]
                 _te("clustering_run", page="My Clusters",
                     session_id=st.session_state.get("uc_session_id", "anonymous"),
@@ -1191,7 +1191,7 @@ if submitted:
         }
         if not is_dev_mode():
             try:
-                from db.queries import track_event as _te
+                from db.analytics import track_event as _te
                 _cr = st.session_state["clustering_results"]
                 _te("clustering_run", page="My Clusters",
                     session_id=st.session_state.get("uc_session_id", "anonymous"),
@@ -1310,7 +1310,7 @@ if submitted:
         }
         if not is_dev_mode():
             try:
-                from db.queries import track_event as _te
+                from db.analytics import track_event as _te
                 _cr = st.session_state["clustering_results"]
                 _te("clustering_run", page="My Clusters",
                     session_id=st.session_state.get("uc_session_id", "anonymous"),

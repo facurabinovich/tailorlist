@@ -16,7 +16,8 @@ import pytest
 from streamlit.testing.v1 import AppTest
 from pathlib import Path
 
-import utils
+import ui.nav as nav
+from app_state import session as sess
 
 _ROOT = Path(__file__).resolve().parent.parent
 HOME_PAGE = str(_ROOT / "pages" / "0_home.py")
@@ -58,7 +59,7 @@ def _resolve(state=None, params=None, cookie=None, context=None):
     with patch.object(st, "session_state", state or {}), \
          patch.object(st, "query_params", params or {}), \
          patch.object(st, "context", ctx):
-        return utils.resolve_sid()
+        return sess.resolve_sid()
 
 
 class TestResolveSid:
@@ -107,7 +108,7 @@ class TestUnavailableVsForgotten:
         import streamlit as st
         state = {}
         with patch.object(st, "session_state", state):
-            utils.mark_uc_session_unavailable()
+            sess.mark_uc_session_unavailable()
         assert state == {"_sid_unavailable": True}
         assert "_sid_forgotten" not in state
 
@@ -135,7 +136,7 @@ class TestForgetUcSession:
         import streamlit as st
         state = {}
         with patch.object(st, "session_state", state):
-            utils.forget_uc_session()
+            sess.forget_uc_session()
         assert state["_sid_forgotten"] is True
 
 
@@ -155,7 +156,7 @@ class TestCookieJsBranch:
              patch.object(st, "sidebar", MagicMock()), \
              patch("streamlit.components.v1.html", _html):
             try:
-                utils.inject_sidebar_nav("Home")
+                nav.inject_sidebar_nav("Home")
             except Exception:
                 pass          # everything after the cookie block needs a real run
         assert payloads, "no component HTML was injected"
@@ -200,8 +201,8 @@ class TestHomeRecoversFromCookie:
             at.query_params[k] = v
         import streamlit as st
         with patch.object(st, "context", _Ctx(cookie)), \
-             patch("db.queries.load_uc_session", return_value=session) as load, \
-             patch("db.queries.touch_uc_session") as touch, \
+             patch("db.sessions.load_uc_session", return_value=session) as load, \
+             patch("db.sessions.touch_uc_session") as touch, \
              patch("ui.nav.inject_sidebar_nav"):
             at.run()
         return at, load, touch

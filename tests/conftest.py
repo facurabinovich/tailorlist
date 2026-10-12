@@ -1,6 +1,6 @@
 """Suite-wide safety net: deterministic env + loud failure on real DB / network access.
 
-Why: tests patch loaders by import path (e.g. ``db.queries.load_cluster_data``).
+Why: tests patch loaders by import path (e.g. ``db.progress.load_cluster_progress``).
 If code moves and a patch stops intercepting, a test could silently hit the real
 local MySQL or Spotify/ReccoBeats and pass by accident. These guards make that fail.
 """
@@ -121,9 +121,8 @@ _orig_create_connection = socket.create_connection
 def patch_get_engine(monkeypatch):
     """Return ``patch(stub)``: replace ``get_engine`` everywhere it is bound.
 
-    ``from db.connection import get_engine`` gives every db.* module (and
-    db.queries, which re-exports it) its own binding, so patching only
-    ``db.connection.get_engine`` misses them. This imports every module in the
+    ``from db.connection import get_engine`` gives every db.* module its own
+    binding, so patching only ``db.connection.get_engine`` misses them. This imports every module in the
     ``db`` package and patches each one that holds a ``get_engine`` name, so new
     db modules are covered without touching the tests.
     """

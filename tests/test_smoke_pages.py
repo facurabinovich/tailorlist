@@ -10,7 +10,7 @@ Data
 
 AppTest quirks handled here (see ``app`` fixture):
   * ``st.context.cookies`` is a MagicMock inside AppTest, which breaks
-    ``utils.inject_sidebar_nav`` / ``resolve_sid`` -> replaced by a plain dict.
+    ``ui.nav.inject_sidebar_nav`` / ``resolve_sid`` -> replaced by a plain dict.
   * ``st.page_link`` needs the multipage registry, absent in a single-file AppTest
     -> no-op. Everything else in ``inject_sidebar_nav`` still runs for real.
   * Unpatched, ``st.switch_page`` raises "Could not find page" in AppTest (it is
@@ -27,7 +27,7 @@ import streamlit as st
 from streamlit.runtime.scriptrunner_utils.exceptions import StopException
 from streamlit.testing.v1 import AppTest
 
-import db.queries as q
+import db.progress as q
 
 
 ROOT = Path(__file__).resolve().parent.parent

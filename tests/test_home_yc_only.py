@@ -39,8 +39,8 @@ def _run_home(params=None, cookie=None, session=None):
     for k, v in (params or {}).items():
         at.query_params[k] = v
     with patch.object(st, "context", _Ctx()), \
-         patch("db.queries.load_uc_session", return_value=session), \
-         patch("db.queries.touch_uc_session"):
+         patch("db.sessions.load_uc_session", return_value=session), \
+         patch("db.sessions.touch_uc_session"):
         at.run()
     return at
 

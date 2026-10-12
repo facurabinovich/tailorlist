@@ -116,8 +116,8 @@ def test_home_restore_touch_only_outside_dev_mode(monkeypatch):
         monkeypatch.setenv("DEV_MODE", dev)
         state = {}
         with patch.object(st, "session_state", state), \
-             patch("db.queries.load_uc_session", return_value=SESSION), \
-             patch("db.queries.touch_uc_session") as touch:
+             patch("db.sessions.load_uc_session", return_value=SESSION), \
+             patch("db.sessions.touch_uc_session") as touch:
             restore_from_sid(SID)
         assert state["uc_active"] and state["uc_session_id"] == SID and state["uc_enriched"] == [1]
         assert touch.call_count == touched
@@ -127,7 +127,7 @@ def test_home_restore_expired_sets_flag_and_unavailable():
     from app_state.home import restore_from_sid
     state, params = {}, {"sid": SID}
     with patch.object(st, "session_state", state), patch.object(st, "query_params", params), \
-         patch("db.queries.load_uc_session", return_value=None):
+         patch("db.sessions.load_uc_session", return_value=None):
         restore_from_sid(SID)
     assert state["_session_expired"] and state["_sid_unavailable"] and "sid" not in params
 

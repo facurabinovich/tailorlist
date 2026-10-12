@@ -8,7 +8,7 @@ from datetime import datetime
 from config import CLUSTER_FEATURES
 from core.clustering import verbose_description as _verbose_description
 from config import is_dev_mode
-from db.queries import (
+from db.progress import (
     load_cluster_progress, save_cluster_progress, save_cluster_progress_bulk,
 )
 from ui.export import render_export_to_spotify
@@ -115,7 +115,7 @@ def _track(event: str, **props):
     if is_dev_mode():
         return
     try:
-        from db.queries import track_event
+        from db.analytics import track_event
         track_event(
             event      = event,
             page       = "Cluster Results",

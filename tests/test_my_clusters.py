@@ -471,9 +471,8 @@ class TestMyClustersPageRender:
             mock_df = _make_full_df()
         return (
             patch("app_state.collection.get_tracks", return_value=mock_df),
-            patch("db.queries.load_cluster_progress", return_value={}),
-            patch("db.queries.save_cluster_progress"),
-            patch("db.queries._add_artist_display", side_effect=lambda df: df),
+            patch("db.progress.load_cluster_progress", return_value={}),
+            patch("db.progress.save_cluster_progress"),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
             patch("ui.nav.check_collection_mode", return_value=True),
@@ -487,9 +486,8 @@ class TestMyClustersPageRender:
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=30)
         with (
             patch("app_state.collection.get_tracks", return_value=mock_df),
-            patch("db.queries.load_cluster_progress", return_value={}),
-            patch("db.queries.save_cluster_progress"),
-            patch("db.queries._add_artist_display", side_effect=lambda df: df),
+            patch("db.progress.load_cluster_progress", return_value={}),
+            patch("db.progress.save_cluster_progress"),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
             patch("ui.nav.check_collection_mode", return_value=True),
@@ -509,9 +507,8 @@ class TestMyClustersPageRender:
         at.session_state["uc_failed"] = []
         with (
             patch("app_state.collection.get_tracks", return_value=mock_df),
-            patch("db.queries.load_cluster_progress", return_value={}),
-            patch("db.queries.save_cluster_progress"),
-            patch("db.queries._add_artist_display", side_effect=lambda df: df),
+            patch("db.progress.load_cluster_progress", return_value={}),
+            patch("db.progress.save_cluster_progress"),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
             patch("ui.nav.check_collection_mode", return_value=True),
@@ -533,9 +530,8 @@ class TestMyClustersPageRender:
         at.session_state["uc_failed"] = []
         with (
             patch("app_state.collection.get_tracks", return_value=mock_df),
-            patch("db.queries.load_cluster_progress", return_value={}),
-            patch("db.queries.save_cluster_progress"),
-            patch("db.queries._add_artist_display", side_effect=lambda df: df),
+            patch("db.progress.load_cluster_progress", return_value={}),
+            patch("db.progress.save_cluster_progress"),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
             patch("ui.nav.check_collection_mode", return_value=True),
@@ -555,9 +551,8 @@ class TestMyClustersPageRender:
         at.session_state["clustering_results"] = cr
         with (
             patch("app_state.collection.get_tracks", return_value=mock_df),
-            patch("db.queries.load_cluster_progress", return_value={}),
-            patch("db.queries.save_cluster_progress"),
-            patch("db.queries._add_artist_display", side_effect=lambda df: df),
+            patch("db.progress.load_cluster_progress", return_value={}),
+            patch("db.progress.save_cluster_progress"),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
             patch("ui.nav.check_collection_mode", return_value=True),
@@ -577,9 +572,8 @@ class TestMyClustersPageRender:
         at.session_state["clustering_results"] = cr
         with (
             patch("app_state.collection.get_tracks", return_value=mock_df),
-            patch("db.queries.load_cluster_progress", return_value={}),
-            patch("db.queries.save_cluster_progress"),
-            patch("db.queries._add_artist_display", side_effect=lambda df: df),
+            patch("db.progress.load_cluster_progress", return_value={}),
+            patch("db.progress.save_cluster_progress"),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
             patch("ui.nav.check_collection_mode", return_value=True),
@@ -642,9 +636,8 @@ class TestMyClustersPageRender:
         at.session_state["clustering_results"] = cr
         with (
             patch("app_state.collection.get_tracks", return_value=mock_df),
-            patch("db.queries.load_cluster_progress", return_value={}),
-            patch("db.queries.save_cluster_progress"),
-            patch("db.queries._add_artist_display", side_effect=lambda df: df),
+            patch("db.progress.load_cluster_progress", return_value={}),
+            patch("db.progress.save_cluster_progress"),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
             patch("ui.nav.check_collection_mode", return_value=True),
@@ -666,9 +659,8 @@ class TestMyClustersPageRender:
         at.session_state["clustering_results"] = cr
         with (
             patch("app_state.collection.get_tracks", return_value=mock_df),
-            patch("db.queries.load_cluster_progress", return_value={}),
-            patch("db.queries.save_cluster_progress"),
-            patch("db.queries._add_artist_display", side_effect=lambda df: df),
+            patch("db.progress.load_cluster_progress", return_value={}),
+            patch("db.progress.save_cluster_progress"),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
             patch("ui.nav.check_collection_mode", return_value=True),
@@ -696,9 +688,8 @@ class TestMyClustersPageRender:
         at.session_state["clustering_results"] = cr
         with (
             patch("app_state.collection.get_tracks", return_value=mock_df),
-            patch("db.queries.load_cluster_progress", return_value={}),
-            patch("db.queries.save_cluster_progress"),
-            patch("db.queries._add_artist_display", side_effect=lambda df: df),
+            patch("db.progress.load_cluster_progress", return_value={}),
+            patch("db.progress.save_cluster_progress"),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
             patch("ui.nav.check_collection_mode", return_value=True),

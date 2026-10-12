@@ -60,7 +60,7 @@ def restore_from_sid(sid: str) -> None:
     and an empty lookup raises the one-shot ``_session_expired`` banner flag.
     """
     if needs_restore(sid):
-        from db.queries import load_uc_session, touch_uc_session
+        from db.sessions import load_uc_session, touch_uc_session
         session = load_uc_session(sid)
         if session:
             apply_restored_session(session, sid)
@@ -99,7 +99,7 @@ def track_site_visit() -> None:
         _vid = st.session_state.get("visitor_id")
         if _vid and not st.session_state.get(f"_tracked_site_visit_{_vid}"):
             try:
-                from db.queries import track_event as _track_event
+                from db.analytics import track_event as _track_event
                 _mode_param = st.query_params.get("mode", "")
                 _track_event(
                     event      = "site_visit",
@@ -212,7 +212,7 @@ def persist_after_adding_playlist() -> None:
     """
     if st.session_state.get("uc_session_id") and not is_dev_mode():
         try:
-            from db.queries import save_uc_session
+            from db.sessions import save_uc_session
             save_uc_session(
                 session_id = st.session_state["uc_session_id"],
                 enriched   = st.session_state.get("uc_enriched", []),

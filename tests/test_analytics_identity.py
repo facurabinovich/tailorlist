@@ -145,12 +145,12 @@ class TestExportInstrumentation:
         assert any("Download as CSV" in l for l in labels), labels
 
     def test_rendering_logs_nothing(self, results_app):
-        with patch("db.queries.track_event") as tev:
+        with patch("db.analytics.track_event") as tev:
             results_app.run()
             assert tev.call_count == 0
 
     def test_cluster_csv_download_is_tracked(self, results_app):
-        with patch("db.queries.track_event") as tev:
+        with patch("db.analytics.track_event") as tev:
             results_app.run()
             btn = next(b for b in _download_buttons(results_app)
                        if "Download CSV" in b.label)
@@ -168,7 +168,7 @@ class TestExportInstrumentation:
 
     def test_spotlistr_csv_download_is_tracked(self, results_app):
         """The CSV button inside render_export_to_spotify — the prod path."""
-        with patch("db.queries.track_event") as tev:
+        with patch("db.analytics.track_event") as tev:
             results_app.run()
             btn = next(b for b in _download_buttons(results_app)
                        if "Download as CSV" in b.label)
@@ -180,7 +180,7 @@ class TestExportInstrumentation:
             assert props["n_tracks"] > 0
 
     def test_event_fires_once_not_on_later_reruns(self, results_app):
-        with patch("db.queries.track_event") as tev:
+        with patch("db.analytics.track_event") as tev:
             results_app.run()
             _download_buttons(results_app)[0].click().run()
             after_click = len(tev.call_args_list)
@@ -190,7 +190,7 @@ class TestExportInstrumentation:
     def test_properties_are_json_serialisable(self, results_app):
         """track_event json.dumps()es properties — numpy types would blow up."""
         import json
-        with patch("db.queries.track_event") as tev:
+        with patch("db.analytics.track_event") as tev:
             results_app.run()
             _download_buttons(results_app)[0].click().run()
             for c in tev.call_args_list:
@@ -198,8 +198,8 @@ class TestExportInstrumentation:
 
     def test_kwargs_match_track_event_signature(self, results_app):
         import inspect
-        from db.queries import track_event
-        with patch("db.queries.track_event") as tev:
+        from db.analytics import track_event
+        with patch("db.analytics.track_event") as tev:
             results_app.run()
             _download_buttons(results_app)[0].click().run()
             sig = inspect.signature(track_event)
@@ -207,7 +207,7 @@ class TestExportInstrumentation:
                 sig.bind(*c.args, **c.kwargs)
 
     def test_mark_done_uses_the_renamed_event(self, results_app):
-        with patch("db.queries.track_event") as tev:
+        with patch("db.analytics.track_event") as tev:
             results_app.run()
             btn = next(b for b in results_app.button
                        if (b.key or "").startswith("mark_done"))
@@ -240,7 +240,7 @@ class _RaisingContext:
 def _resolve_vid(cookie=None, context=None):
     """Runs the real inject_sidebar_nav visitor-id block and returns the id."""
     import streamlit as st
-    import utils
+    import ui.nav as nav
 
     state = {}
     ctx = context if context is not None else _FakeContext(cookie)
@@ -251,7 +251,7 @@ def _resolve_vid(cookie=None, context=None):
          patch.object(st, "components", MagicMock()):
         # everything after the visitor-id block needs a live script context
         try:
-            utils.inject_sidebar_nav("Home")
+            nav.inject_sidebar_nav("Home")
         except Exception:
             pass
     return state.get("visitor_id")
@@ -278,7 +278,7 @@ class TestVisitorIdentity:
     def test_id_is_not_put_in_the_url(self):
         """It lives in a cookie; a ?vid= would leak identity via shared links."""
         import streamlit as st
-        import utils
+        import ui.nav as nav
         state, qp = {}, {}
         with patch.object(st, "context", _FakeContext(VID)), \
              patch.object(st, "session_state", state), \
@@ -286,7 +286,7 @@ class TestVisitorIdentity:
              patch.object(st, "sidebar", MagicMock()), \
              patch.object(st, "components", MagicMock()):
             try:
-                utils.inject_sidebar_nav("Home")
+                nav.inject_sidebar_nav("Home")
             except Exception:
                 pass
         assert state.get("visitor_id") == VID, "block did not run"
@@ -309,8 +309,8 @@ def home_app():
 
 class TestYcSessionRestore:
     def test_restore_runs_and_touches_last_seen(self, home_app):
-        with patch("db.queries.load_uc_session", return_value=FAKE_SESSION), \
-             patch("db.queries.touch_uc_session") as touch, \
+        with patch("db.sessions.load_uc_session", return_value=FAKE_SESSION), \
+             patch("db.sessions.touch_uc_session") as touch, \
              patch("ui.nav.inject_sidebar_nav"):
             home_app.run()
             assert not home_app.exception, home_app.exception
@@ -318,8 +318,8 @@ class TestYcSessionRestore:
             assert touch.call_args.args[0] == SID
 
     def test_session_lands_in_state(self, home_app):
-        with patch("db.queries.load_uc_session", return_value=FAKE_SESSION), \
-             patch("db.queries.touch_uc_session"), \
+        with patch("db.sessions.load_uc_session", return_value=FAKE_SESSION), \
+             patch("db.sessions.touch_uc_session"), \
              patch("ui.nav.inject_sidebar_nav"):
             home_app.run()
             assert home_app.session_state["uc_active"] is True
@@ -327,8 +327,8 @@ class TestYcSessionRestore:
 
     def test_dev_mode_writes_nothing(self, home_app, monkeypatch):
         monkeypatch.setenv("DEV_MODE", "1")
-        with patch("db.queries.load_uc_session", return_value=FAKE_SESSION), \
-             patch("db.queries.touch_uc_session") as touch, \
+        with patch("db.sessions.load_uc_session", return_value=FAKE_SESSION), \
+             patch("db.sessions.touch_uc_session") as touch, \
              patch("ui.nav.inject_sidebar_nav"):
             home_app.run()
             assert not home_app.exception, home_app.exception

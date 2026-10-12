@@ -67,7 +67,7 @@ def mark_uc_session_unavailable():
 
 def load_uc_session(session_id: str):
     """Load a persisted YC session (thin wrapper so ui/ never imports db/)."""
-    from db.queries import load_uc_session as _load
+    from db.sessions import load_uc_session as _load
     return _load(session_id)
 
 
