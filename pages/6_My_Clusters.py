@@ -17,7 +17,6 @@ from core.clustering import (
     best_k as _best_k,
 )
 from core.grouping import (
-    release_date_to_decade as _rd_to_decade,
     group_by_category as run_category_grouping,
     group_by_specific_genres as run_specific_genre_grouping,
 )
@@ -40,7 +39,7 @@ if st.session_state.pop("_start_fresh", False):
         "clustering_results", "clusters_pl_filter_yc",
         "clusters_decade_filter_yc",
         "clusters_genre_filter_yc",
-        "selected_genres", "_prev_genre_families", "_prev_sgl_families", "cluster_descriptions",
+        "selected_genres", "_prev_genre_families", "_prev_sgl_families",
         "grouping_mode", "k_mode", "k_manual_slider",
         "group_by_decade", "group_by_genre", "keep_visible",
         "specific_cluster_genres", "specific_genre_decade", "grouping_dim_choice",
@@ -173,22 +172,8 @@ if not st.session_state.get("_clusters_initialized"):
 
 df_all = load_data()
 
-# Build full YC pool (enriched + non-enriched) inline — _load_unmatched isn't defined yet.
-_yc_ne_rows = [
-    {
-        "track_id":      t.get("id", ""),
-        "track_name":    t.get("name", ""),
-        "artist_name":   ", ".join(t.get("artists", [])) if isinstance(t.get("artists"), list) else t.get("artists", ""),
-        "release_year":  t.get("release_date", "")[:4] if t.get("release_date") else "",
-        "decade":        _rd_to_decade(t.get("release_date", "") or ""),
-        "artist_genres": t.get("artist_genres", ""),
-        "playlist_name": t.get("playlist_name", ""),
-    }
-    for t in st.session_state.get("uc_skipped", []) + st.session_state.get("uc_failed", [])
-]
-_yc_ne = pd.DataFrame(_yc_ne_rows) if _yc_ne_rows else pd.DataFrame(
-    columns=["track_id", "track_name", "artist_name", "release_year", "decade", "artist_genres", "playlist_name"]
-)
+# Full YC pool = enriched (df_all) + non-enriched; decade feeds the category grouping.
+_yc_ne = _load_unmatched(include_decade=True)
 # Remove tracks that succeeded enrichment in another playlist — they're already
 # in df_all and will be clustered; showing them in Unmatched too would be confusing.
 if not _yc_ne.empty and not df_all.empty:
@@ -1063,7 +1048,6 @@ if submitted:
 
         st.session_state.pop("unmatched_assignments", None)
         st.session_state.pop("unmatched_save_status", None)
-        st.session_state.pop("cluster_descriptions", None)
         st.session_state.pop("keep_visible", None)
         st.session_state.pop("_unmatched_done_ids", None)
         st.session_state["clustering_results"] = {
@@ -1153,7 +1137,6 @@ if submitted:
 
         st.session_state.pop("unmatched_assignments", None)
         st.session_state.pop("unmatched_save_status", None)
-        st.session_state.pop("cluster_descriptions", None)
         st.session_state.pop("keep_visible", None)
         st.session_state.pop("_unmatched_done_ids", None)
         st.session_state["clustering_results"] = {
@@ -1274,7 +1257,6 @@ if submitted:
 
         st.session_state.pop("unmatched_assignments", None)
         st.session_state.pop("unmatched_save_status", None)
-        st.session_state.pop("cluster_descriptions", None)
         st.session_state.pop("keep_visible", None)
         st.session_state.pop("_unmatched_done_ids", None)
         st.session_state["clustering_results"] = {
@@ -1286,6 +1268,7 @@ if submitted:
             "scaler_used":       results[5],
             "pc1_label":         results[6],
             "pc2_label":         results[7],
+            "cluster_descriptions": results[8],
             "metrics_df":        metrics_df,
             "best_k_sil":        best_k_sil,
             "best_k_elbow":      best_k_elbow,

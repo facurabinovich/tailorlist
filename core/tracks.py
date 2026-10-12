@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from core.grouping import release_date_to_decade
+
 # Raw Spotify/enrichment field -> canonical column used by every page.
 YC_COLUMN_RENAMES: dict[str, str] = {
     "id":          "track_id",
@@ -120,24 +122,29 @@ def cluster_pool_frame(df: pd.DataFrame, cluster_features: list[str]) -> pd.Data
     return df[available].drop_duplicates(subset="track_id")
 
 
-def yc_unmatched_frame(skipped: list[dict], failed: list[dict]) -> pd.DataFrame:
+def yc_unmatched_frame(skipped: list[dict], failed: list[dict],
+                       include_decade: bool = False) -> pd.DataFrame:
     """Tracks of the user's collection that had no audio features (skipped + failed).
 
     One row per raw record (no dedup), with ``release_year`` as the first 4 characters of
-    ``release_date`` and an ``artist_display`` column. Empty input gives an empty frame
-    with the same columns.
+    ``release_date`` and an ``artist_display`` column. With include_decade=True a
+    ``decade`` column (int or None, see release_date_to_decade) follows release_year.
+    Empty input gives an empty frame with the same columns.
     """
     rows = []
     for t in skipped + failed:
-        rows.append({
+        row = {
             "track_id":      t.get("id", ""),
             "track_name":    t.get("name", ""),
             "artist_name":   ", ".join(t.get("artists", [])) if isinstance(t.get("artists"), list) else t.get("artists", ""),
             "release_year":  t.get("release_date", "")[:4] if t.get("release_date") else "",
-            "artist_genres": t.get("artist_genres", ""),
-            "playlist_name": t.get("playlist_name", ""),
-        })
-    df = pd.DataFrame(rows) if rows else pd.DataFrame(
-        columns=["track_id", "track_name", "artist_name", "release_year", "artist_genres", "playlist_name"]
-    )
+        }
+        if include_decade:
+            row["decade"] = release_date_to_decade(t.get("release_date", "") or "")
+        row["artist_genres"] = t.get("artist_genres", "")
+        row["playlist_name"] = t.get("playlist_name", "")
+        rows.append(row)
+    columns = ["track_id", "track_name", "artist_name", "release_year",
+               *(["decade"] if include_decade else []), "artist_genres", "playlist_name"]
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=columns)
     return add_artist_display(df)

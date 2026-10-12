@@ -666,7 +666,7 @@ cluster_sorted = (
     .reset_index(drop=True)
 )
 
-_descriptions = st.session_state.get("cluster_descriptions", {})
+_descriptions = r.get("cluster_descriptions", {})
 
 # Precompute per-cluster track_id lists using only the original KMeans track_ids —
 # exclude manually assigned unmatched tracks (they were appended to df_clust by save_assignments

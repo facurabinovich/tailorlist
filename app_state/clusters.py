@@ -24,15 +24,12 @@ def run_kmeans(df_all: pd.DataFrame, track_ids_tuple: tuple, k: int):
         centroids_norm  — DataFrame(k × radar_features), StandardScaler space
         var1, var2      — PCA variance explained (%)
         scaler, label1, label2
+        descriptions    — {int → descriptive name} when k > 5 (clusters are numbered), else {}
     """
     df_sub = df_all[df_all["track_id"].isin(set(track_ids_tuple))].copy()
     res = kmeans_cluster(df_sub, k)
-    if res.descriptions:
-        # k > 5: clusters are numbered; keep the descriptive names for the results page.
-        # Runs on cache miss only, exactly as when this lived inside _make_names.
-        st.session_state["cluster_descriptions"] = res.descriptions
     return (res.df_clust, res.name_map, res.centroids_scaled, res.var1, res.var2,
-            res.scaler, res.label1, res.label2)
+            res.scaler, res.label1, res.label2, res.descriptions)
 
 
 @st.cache_data(show_spinner=False)
@@ -52,9 +49,10 @@ def load_data() -> pd.DataFrame:
     return cluster_pool_frame(_collection.get_tracks(), CLUSTER_FEATURES)
 
 
-def _load_unmatched() -> pd.DataFrame:
+def _load_unmatched(include_decade: bool = False) -> pd.DataFrame:
     """Tracks without audio features: the skipped + failed ones in the session."""
     return yc_unmatched_frame(
         st.session_state.get("uc_skipped", []),
         st.session_state.get("uc_failed", []),
+        include_decade=include_decade,
     )

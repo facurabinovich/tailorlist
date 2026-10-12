@@ -1384,18 +1384,16 @@ def test_k_metrics_and_best_k_match_baseline(df_all, full_metrics):
 def test_cached_run_kmeans_wrapper_delegates_to_core(df_all, k):
     sub = df_all.head(60)
     st.cache_data.clear()
-    st.session_state.pop("cluster_descriptions", None)
     res = run_kmeans(df_all, tuple(sub["track_id"]), k)
     core = kmeans_cluster(sub, k)
-    assert len(res) == 8
+    assert len(res) == 9
     pd.testing.assert_frame_equal(res[0], core.df_clust)
     assert res[1] == core.name_map
     pd.testing.assert_frame_equal(res[2], core.centroids_scaled)
     assert (res[3], res[4], res[6], res[7]) == (core.var1, core.var2, core.label1, core.label2)
     assert res[5].mean_.tolist() == core.scaler.mean_.tolist()
-    assert st.session_state.get("cluster_descriptions", {}) == core.descriptions
+    assert res[8] == core.descriptions
     assert bool(core.descriptions) == (k > 5)
-    st.session_state.pop("cluster_descriptions", None)
 
 
 def test_cached_compute_k_metrics_wrapper_delegates_to_core(df_all):
@@ -1432,6 +1430,15 @@ def test_identical_inputs_hit_the_cache(df_all, monkeypatch):
     b = run_kmeans(df_all.copy(), ids, 3)  # equal content, new object
     assert calls == [3]
     assert a[0].equals(b[0])
+
+
+def test_descriptions_survive_a_cache_hit(df_all):
+    """Descriptions are part of the cached value, not a cache-miss side effect."""
+    st.cache_data.clear()
+    ids = tuple(df_all["track_id"].head(60))
+    first = run_kmeans(df_all, ids, 6)
+    again = run_kmeans(df_all.copy(), ids, 6)
+    assert first[8] and again[8] == first[8]
 
 
 @pytest.mark.parametrize("k", sorted(EXPECTED["make_names"]))

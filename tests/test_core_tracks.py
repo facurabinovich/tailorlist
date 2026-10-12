@@ -2,7 +2,7 @@
 import pandas as pd
 import pytest
 
-from core.tracks import add_artist_display, parse_release_year, yc_tracks_frame
+from core.tracks import add_artist_display, parse_release_year, yc_tracks_frame, yc_unmatched_frame
 
 
 @pytest.mark.parametrize("raw,expected", [
@@ -66,3 +66,15 @@ def test_yc_frame_without_release_date_has_no_year_columns():
     df = yc_tracks_frame([{"id": "x", "name": "N", "artists": "A"}], include_unenriched=False)
     assert "release_year" not in df.columns and "decade" not in df.columns
     assert df.loc[0, "artist_display"] == "A"
+
+
+def test_yc_unmatched_frame_include_decade():
+    skp = [{"id": "s1", "name": "S", "artists": ["A"], "release_date": "1994-05-01"}]
+    fl = [{"id": "f1", "name": "F", "artists": "B", "release_date": ""}]
+    plain = yc_unmatched_frame(skp, fl)
+    assert "decade" not in plain.columns
+    df = yc_unmatched_frame(skp, fl, include_decade=True)
+    assert list(df.columns[:5]) == ["track_id", "track_name", "artist_name", "release_year", "decade"]
+    assert df.loc[0, "decade"] == 1990 and pd.isna(df.loc[1, "decade"])
+    empty = yc_unmatched_frame([], [], include_decade=True)
+    assert empty.empty and "decade" in empty.columns
