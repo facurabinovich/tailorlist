@@ -2,7 +2,7 @@ import uuid as _uuid
 import streamlit as st
 
 from config import is_dev_mode
-from app_state.session import resolve_sid, mark_uc_session_unavailable, _UUID_RE, MODE_YC
+from app_state.session import resolve_sid, mark_uc_session_unavailable, _UUID_RE
 
 # YC sessions expire server-side 7 days after creation (see load_uc_session)
 _SID_COOKIE_MAX_AGE = 7 * 24 * 60 * 60
@@ -106,7 +106,6 @@ def inject_sidebar_nav(page: str = "Home"):
                 st.session_state["uc_active"]           = True
                 st.session_state["uc_enrichment_state"] = "idle"
                 st.session_state["uc_session_id"]       = _sid
-                st.session_state["mode"]                = MODE_YC
             else:
                 # Expired, or the DB was unreachable — stop retrying this run,
                 # but keep the cookie so a transient outage isn't permanent
@@ -127,12 +126,6 @@ def inject_sidebar_nav(page: str = "Home"):
             track_page_view(page)
         except Exception:
             pass
-
-    # The app only has Your Collection now, and no page reads this key to decide
-    # anything. Setdefault semantics (not an overwrite); R4 decides whether the
-    # "mode" key stays at all.
-    if not st.session_state.get("mode"):
-        st.session_state["mode"] = MODE_YC
 
     with st.sidebar:
         st.page_link("pages/0_home.py", label="🏠 Home")

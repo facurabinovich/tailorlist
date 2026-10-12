@@ -578,7 +578,6 @@ class TestAudioDnaPageRender:
         mock_df = _make_full_mock_df()
         n = len(mock_df["track_id"].unique())
         at = self._run_page(session_state={
-            "mode": "🔗 Your Collection",
             "uc_enriched": _uc_tracks(mock_df["track_id"].unique().tolist()),
             "uc_skipped":  [],
             "uc_failed":   [],
@@ -591,7 +590,6 @@ class TestAudioDnaPageRender:
         mock_df = _make_full_mock_df()
         all_ids = mock_df["track_id"].unique().tolist()
         at = self._run_page(session_state={
-            "mode":         "🔗 Your Collection",
             "uc_enriched":  _uc_tracks(all_ids[:6]),
             "uc_skipped":   _uc_tracks(all_ids[6:]),
             "uc_failed":    [],

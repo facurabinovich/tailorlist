@@ -95,11 +95,10 @@ with col2:
     st.markdown("""
     <div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:24px;">
       <div style="color:#1DB954;font-size:1rem;font-weight:700;margin-bottom:12px;">
-        🎵 Demo Playlists
+        🎵 My Playlists
       </div>
       <p style="color:#B3B3B3;font-size:0.88rem;line-height:1.6;margin:0 0 16px 0;">
-        Do you like the demo playlists? 
-        These are the playlists powering Demo Collection and their urls. 
+        Curious what I listen to? Here are some of my playlists.
       </p>
       <div style="display:flex;flex-direction:column;gap:8px;">
         <a href="https://open.spotify.com/playlist/538TXA5GvgRPwEBYQrHWk4"

@@ -4,7 +4,6 @@ import math as _math
 import streamlit as st
 from config import PAGE_CONFIG
 from config import is_dev_mode
-from app_state.session import MODE_YC
 
 st.set_page_config(**PAGE_CONFIG)
 
@@ -369,7 +368,6 @@ if st.button("🗑️ Cancel and start over", type="secondary", use_container_wi
                     st.session_state["uc_session_id"]        = _prev_sid
                     st.session_state["uc_active"]            = True
                     st.session_state["uc_enrichment_state"]  = "idle"
-                    st.session_state["mode"]                 = MODE_YC
                     st.query_params["sid"]                   = _prev_sid
                     _restored = True
             except Exception:
@@ -381,7 +379,6 @@ if st.button("🗑️ Cancel and start over", type="secondary", use_container_wi
             st.session_state["uc_playlists"]        = _prev_playlists or []
             st.session_state["uc_active"]           = True
             st.session_state["uc_enrichment_state"] = "idle"
-            st.session_state["mode"]                = MODE_YC
 
     st.switch_page("pages/0_home.py")
 

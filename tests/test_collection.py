@@ -14,7 +14,6 @@ import pytest
 import streamlit as st
 
 from app_state.collection import get_all_tracks, get_tracks
-from app_state.session import MODE_YC
 
 ROOT = Path(__file__).resolve().parent.parent
 COLL = json.loads((ROOT / "data" / "dev_collection.json").read_text(encoding="utf-8"))
@@ -335,7 +334,7 @@ def _hash(df):
 def test_yc_frame_matches_pre_refactor_capture(monkeypatch, fn_name, fn, case):
     enriched, skipped, failed = CASES[case]()
     monkeypatch.setattr(st, "session_state", {
-        "mode": MODE_YC, "uc_active": True,
+        "uc_active": True,
         "uc_enriched": enriched, "uc_skipped": skipped, "uc_failed": failed,
     })
     df = fn()
@@ -354,7 +353,7 @@ def test_yc_frame_matches_pre_refactor_capture(monkeypatch, fn_name, fn, case):
 def test_get_tracks_never_includes_skipped_or_failed(monkeypatch):
     enriched, skipped, failed = CASES["edge_all"]()
     monkeypatch.setattr(st, "session_state", {
-        "mode": MODE_YC, "uc_active": True,
+        "uc_active": True,
         "uc_enriched": enriched, "uc_skipped": skipped, "uc_failed": failed,
     })
     assert len(get_tracks()) == 7
@@ -364,11 +363,11 @@ def test_get_tracks_never_includes_skipped_or_failed(monkeypatch):
 @pytest.mark.parametrize("fn", [get_tracks, get_all_tracks])
 @pytest.mark.parametrize("state", [
     {},
-    {"mode": MODE_YC},
-    {"mode": MODE_YC, "uc_active": True},
-    {"mode": MODE_YC, "uc_active": True, "uc_enriched": []},
+    {"visitor_id": "x"},
+    {"uc_active": True},
+    {"uc_active": True, "uc_enriched": []},
     {"uc_enriched": [{"id": "x", "name": "n", "artists": "a", "playlist_name": "P"}]},
-], ids=["empty", "mode-only", "active-no-enriched", "active-empty-enriched", "enriched-not-active"])
+], ids=["empty", "unrelated-key-only", "active-no-enriched", "active-empty-enriched", "enriched-not-active"])
 def test_no_collection_returns_empty_frame_without_touching_db(monkeypatch, fn, state):
     """Without an active enriched collection the loaders return an empty frame, never the DB.
 

@@ -83,8 +83,6 @@ def redirects(monkeypatch):
 
 def _page(name: str, mode: str | None = None) -> AppTest:
     at = AppTest.from_file(str(PAGES_DIR / f"{name}.py"), default_timeout=120)
-    if mode is not None:
-        at.session_state["mode"] = mode
     if mode == YC:
         _yc_state(at)
     return at

@@ -492,7 +492,6 @@ class TestOverviewPageRender:
     def test_TC30_yc_banner_appears_in_yc_mode(self):
         at = self._run_page(
             session_state={
-                "mode": "🔗 Your Collection",
                 "uc_active": True,
             }
         )

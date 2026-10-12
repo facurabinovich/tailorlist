@@ -1,6 +1,6 @@
 """Temporary compatibility module (removed in T28).
 
-Re-exports everything that moved to db.tracks / db.progress / db.sessions /
+Re-exports everything that moved to db.progress / db.sessions /
 db.analytics, so existing `from db.queries import X` and `patch("db.queries.X")`
 keep working.
 """
@@ -10,14 +10,6 @@ from core.tracks import add_artist_display as _add_artist_display, parse_release
 # app_state/collection.py since T12); removed in T28 together with this module.
 from app_state.collection import (  # noqa: F401
     get_tracks, get_all_tracks,
-)
-from db.tracks import (
-    _SECONDARY_ARTISTS_SUBQUERY, _BASE_SQL, _BASE_SQL_ALL,
-    load_tracks, load_all_tracks, load_tracks_deduped,
-    load_playlist_track_counts, load_top_artists, load_additions_timeline,
-    load_audio_features_by_playlist, load_playlist_meta, load_cluster_data,
-    load_all_tracks_for_grouping, load_unmatched_tracks,
-    load_top_artists_by_popularity, load_top_albums, load_tracks_added_by_month,
 )
 from db.progress import (
     _ensure_tables, load_cluster_progress, reset_cluster_progress,

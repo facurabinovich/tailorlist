@@ -587,9 +587,6 @@ except ImportError:
     APPTEST_AVAILABLE = False
 
 
-YC_MODE = "🔗 Your Collection"
-
-
 def _make_uc_playlists(followers=(500, 200)):
     """uc_playlists session records: the page builds its playlist metadata from them."""
     return [
@@ -600,7 +597,6 @@ def _make_uc_playlists(followers=(500, 200)):
 
 def _yc_state(uc_playlists=None):
     return {
-        "mode": YC_MODE,
         "uc_active": True,
         "uc_playlists": uc_playlists if uc_playlists is not None else _make_uc_playlists(),
     }

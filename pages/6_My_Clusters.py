@@ -22,7 +22,6 @@ from core.grouping import (
     group_by_specific_genres as run_specific_genre_grouping,
 )
 from config import is_dev_mode
-from app_state.session import MODE_YC
 from datetime import datetime
 from ui.components import section_title
 from ui.export import render_export_to_spotify
@@ -136,8 +135,8 @@ def kpi_card(icon: str, label: str, value: str, sub: str = "") -> str:
 
 # ── Data & model loading ──────────────────────────────────────────────────────
 # Clear stale playlist selection on the first visit of the session
-if st.session_state.get("_clusters_mode") != MODE_YC:
-    st.session_state["_clusters_mode"] = MODE_YC
+if not st.session_state.get("_clusters_initialized"):
+    st.session_state["_clusters_initialized"] = True
     st.session_state.pop("clusters_pl_filter_yc", None)
     st.session_state.pop("clustering_results", None)
     st.session_state.pop("selected_genres", None)
@@ -1105,7 +1104,7 @@ if submitted:
                 from db.queries import track_event as _te
                 _cr = st.session_state["clustering_results"]
                 _te("clustering_run", page="My Clusters",
-                    session_id=st.session_state.get("uc_session_id", "fc_user"),
+                    session_id=st.session_state.get("uc_session_id", "anonymous"),
                     visitor_id=st.session_state.get("visitor_id"),
                     properties={"mode": "By category", "k": _cr["k"],
                                 "n_tracks": _cr["n_tracks"],
@@ -1195,7 +1194,7 @@ if submitted:
                 from db.queries import track_event as _te
                 _cr = st.session_state["clustering_results"]
                 _te("clustering_run", page="My Clusters",
-                    session_id=st.session_state.get("uc_session_id", "fc_user"),
+                    session_id=st.session_state.get("uc_session_id", "anonymous"),
                     visitor_id=st.session_state.get("visitor_id"),
                     properties={"mode": "By specific genre", "k": _cr["k"],
                                 "n_tracks": _cr["n_tracks"],
@@ -1314,7 +1313,7 @@ if submitted:
                 from db.queries import track_event as _te
                 _cr = st.session_state["clustering_results"]
                 _te("clustering_run", page="My Clusters",
-                    session_id=st.session_state.get("uc_session_id", "fc_user"),
+                    session_id=st.session_state.get("uc_session_id", "anonymous"),
                     visitor_id=st.session_state.get("visitor_id"),
                     properties={"mode": "KMeans", "k": _cr["k"],
                                 "n_tracks": _cr["n_tracks"],

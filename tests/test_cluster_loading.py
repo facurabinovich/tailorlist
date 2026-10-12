@@ -16,7 +16,6 @@ import pandas as pd
 import pytest
 import streamlit as st
 
-from app_state.session import MODE_YC
 
 ROOT = Path(__file__).resolve().parent.parent
 _DEV = ROOT / "data" / "dev_collection.json"
@@ -39,7 +38,7 @@ def yc_sessions() -> dict[str, dict]:
     ]
     edge_failed = [{"id": "f1", "name": "F1", "artists": [], "release_date": "1999",
                     "artist_genres": "pop", "playlist_name": "P1"}]
-    active = {"mode": MODE_YC, "uc_active": True}
+    active = {"uc_active": True}
     return {
         "real": {**active, "uc_enriched": COLL["enriched"], "uc_skipped": COLL["skipped"],
                  "uc_failed": COLL["failed"]},

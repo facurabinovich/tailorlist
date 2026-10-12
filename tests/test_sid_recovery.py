@@ -212,7 +212,6 @@ class TestHomeRecoversFromCookie:
         load.assert_called_once_with(SID)
         assert at.session_state["uc_active"] is True
         assert at.session_state["uc_session_id"] == SID
-        assert at.session_state["mode"] == "🔗 Your Collection"
         assert touch.call_count == 1
 
     def test_failed_lookup_shows_the_banner_and_keeps_the_cookie(self):

@@ -188,7 +188,7 @@ returned     = _scalar("""
 returned_yc  = _scalar("""
     SELECT COUNT(*) FROM (
         SELECT session_id FROM app_analytics
-        WHERE session_id IS NOT NULL AND session_id <> 'fc_user'
+        WHERE session_id IS NOT NULL AND session_id NOT IN ('fc_user', 'anonymous')
         GROUP BY session_id HAVING COUNT(DISTINCT DATE(created_at)) >= 2
     ) t
 """)

@@ -684,7 +684,7 @@ def _make_full_mock_df():
     })
 
 
-_YC_STATE = {"mode": "🔗 Your Collection", "uc_active": True}
+_YC_STATE = {"uc_active": True}
 
 
 @pytest.mark.skipif(not APPTEST_AVAILABLE, reason="streamlit.testing not available")

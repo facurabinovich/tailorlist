@@ -1,6 +1,6 @@
 # Tareas: refactor de arquitectura
 
-> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). R1–R3 hechas (2026-10-12); sigue **R4**. Suite: 600 tests, ~3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H9 (H8 resuelto en R2).
+> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Fase 3b completa (2026-10-12, Checkpoint 3b). Sigue la **Fase 4** (T19 Overview). Suite: 599 tests, ~1–3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H9 (H8 resuelto en R2).
 
 Plan: [`plan.md`](plan.md) · Spec: [`SPEC.md`](../SPEC.md)
 
@@ -164,13 +164,15 @@ Arranca después del Checkpoint 3, que valida las Fases 1–3 con FC todavía pr
   - Acceptance: sin ramas FC, sin el botón Refresh (solo FC), sin los loaders FC cacheados en `app_state/clusters.py`. Los tres modos de agrupación siguen andando en YC, y también la asignación manual, el progreso, el reset y la re-apertura.
   - Verify: suite; flujos A/B YC del Checkpoint 3 idénticos.
   - Files: `pages/6_My_Clusters.py`, `pages/_Cluster_Results.py`, `app_state/clusters.py`, tests.
-- [ ] **R4: Código muerto de FC** · S
+- [x] **R4: Código muerto de FC** · S
+  - Hecho (2026-10-12): `db/tracks.py` borrado entero (ningún llamador, tampoco en `pipeline/`/`scripts/`), igual que los labels de `config.py`, `MODE_FC`/`MODE_YC` y la clave `"mode"` (My Clusters usa `_clusters_initialized` para la limpieza de primera visita). Decisiones de Facu: Contact pasa a "🎵 My Playlists" / "Curious what I listen to? Here are some of my playlists." (mismos 5 links), y `fc_user` pasa a `anonymous` (`monitoring.py` excluye ambos en "returned YC"). Suite: 599 en ambos órdenes.
   - Pendientes que dejaron R1–R3: `MODE_FC`/`MODE_YC` y la clave `"mode"` (la nav la sigue seteando; ya nadie la lee salvo el clear de primera visita de My Clusters vía `_clusters_mode`), el texto "playlists powering Demo Collection" en `pages/8_Contact.py:102`, y el fallback `"fc_user"` de `session_id` en los eventos de analytics.
   - Acceptance: se borran los loaders del star schema en `db/tracks.py` que ya no usa nadie, `config.PLAYLIST_LABELS`/`_DEV_PLAYLIST_LABELS`/`_DEMO_PLAYLIST_LABELS` si quedan sin uso, y los tests de esos loaders. Se queda lo que YC usa (sessions, progress, analytics, `load_uc_session`…). `pipeline/` no se toca (T28).
   - Verify: suite; grep sin referencias colgando; test de arquitectura verde.
 
 ### ✅ Checkpoint 3b
-- [ ] Suite verde y app real solo YC: los textos de las 10 páginas son idénticos a `tasks/baseline/YC_*` (salvo el selector de modo y H6), y los flujos de clustering son idénticos a `tasks/checkpoint3/new/YC_*`.
+- [x] (2026-10-12) Las 9 páginas idénticas a R3 salvo el texto nuevo de Contact, y los 11 pasos de los flujos idénticos a la referencia sobre R2 (= `checkpoint3/new/YC_*` salvo el selector), sin excepciones ni tracebacks. Capturas en `tasks/checkpoint3b/`.
+- [x] Suite verde y app real solo YC: los textos de las 10 páginas son idénticos a `tasks/baseline/YC_*` (salvo el selector de modo y H6), y los flujos de clustering son idénticos a `tasks/checkpoint3/new/YC_*`.
 
 ## Fase 4: páginas finas
 **Prioridad por el pivot:** primero la lógica de dominio a `core/`, con firmas tipadas, porque van a ser tools (sobre todo duplicados y versiones de Comparison y los perfiles de Audio DNA). Mover HTML a `ui/` solo si es barato.

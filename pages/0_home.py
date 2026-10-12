@@ -10,9 +10,7 @@ _log = logging.getLogger(__name__)
 
 from ui.theme import inject_global_css
 from config import is_dev_mode
-from app_state.session import MODE_YC
 inject_global_css()
-from db.queries import load_playlist_track_counts
 
 import base64
 with open("assets/spotify-full-logo/Full_Logo_Green_RGB.svg", "rb") as f:
@@ -47,7 +45,6 @@ if (_sid
         st.session_state["uc_active"]           = True
         st.session_state["uc_enrichment_state"] = "idle"
         st.session_state["uc_session_id"]       = _sid
-        st.session_state["mode"]                = MODE_YC
         if not is_dev_mode():
             touch_uc_session(_sid)
     else:
@@ -75,7 +72,6 @@ if (is_dev_mode()
         st.session_state["uc_playlists"]        = _dev_data["playlists"]
         st.session_state["uc_active"]           = True
         st.session_state["uc_enrichment_state"] = "idle"
-        st.session_state["mode"]                = MODE_YC
         st.session_state["_dev_loaded"]         = True
 
 # (?mode= is ignored for navigation; the app only has Your Collection. It is
@@ -92,7 +88,7 @@ if not is_dev_mode():
             _track_event(
                 event      = "site_visit",
                 page       = "Home",
-                session_id = st.session_state.get("uc_session_id", "fc_user"),
+                session_id = st.session_state.get("uc_session_id", "anonymous"),
                 visitor_id = _vid,
                 properties = {"referrer": _mode_param} if _mode_param else None,
             )
@@ -127,7 +123,6 @@ _RESET_KEYS = (
     "uc_enrichment_state",
     "uc_enrichment_cursor",
     "uc_all_tracks",
-    "mode",
     "_dev_loaded",
     "uc_session_id",
     "_pending_sid",
@@ -377,7 +372,7 @@ if _state == "complete":
                     st.query_params.clear()
                     for k in ("uc_enriched", "uc_failed", "uc_skipped",
                               "uc_active", "uc_enrichment_state",
-                              "uc_enrichment_cursor", "uc_all_tracks", "mode",
+                              "uc_enrichment_cursor", "uc_all_tracks",
                               "uc_session_id"):
                         st.session_state.pop(k, None)
                     forget_uc_session()   # don't restore it from the cookie
@@ -726,7 +721,7 @@ localStorage.removeItem('tailorlist_sid');
                         st.query_params.clear()
                         for k in ("uc_enriched", "uc_failed", "uc_skipped",
                                   "uc_active", "uc_enrichment_state",
-                                  "uc_enrichment_cursor", "uc_all_tracks", "mode",
+                                  "uc_enrichment_cursor", "uc_all_tracks",
                                   "uc_session_id"):
                             st.session_state.pop(k, None)
                         forget_uc_session()   # don't restore it from the cookie

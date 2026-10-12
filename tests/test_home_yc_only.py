@@ -10,7 +10,6 @@ from streamlit.testing.v1 import AppTest
 
 _ROOT = Path(__file__).resolve().parent.parent
 HOME_PAGE = str(_ROOT / "pages" / "0_home.py")
-YC = "🔗 Your Collection"
 SID = "12345678-1234-4123-8123-123456789abc"
 
 
@@ -50,33 +49,18 @@ def _all_text(at):
     return " ".join(m.value for m in at.markdown)
 
 
-def test_nav_defaults_mode_to_yc_and_has_no_radio():
+def test_nav_has_no_radio_and_writes_no_mode_key():
     at = _run_home()
     assert not at.exception, at.exception
-    assert at.session_state["mode"] == YC
+    assert "mode" not in at.session_state
     assert not at.radio
-
-
-def test_nav_does_not_overwrite_an_existing_mode_value():
-    """The default is setdefault-style: whatever value a session already holds survives."""
-    import streamlit as st
-    from ui.nav import inject_sidebar_nav
-    state = {"mode": "some-existing-mode", "visitor_id": "x"}
-    with patch.object(st, "session_state", state), \
-         patch.object(st, "sidebar", __import__("unittest.mock").mock.MagicMock()), \
-         patch("streamlit.components.v1.html"):
-        try:
-            inject_sidebar_nav("Home")
-        except Exception:
-            pass
-    assert state["mode"] == "some-existing-mode"
 
 
 @pytest.mark.parametrize("value", ["demo", "uc"])
 def test_mode_query_param_is_ignored_and_yc_ui_renders(value):
     at = _run_home(params={"mode": value})
     assert not at.exception, at.exception
-    assert at.session_state["mode"] == YC
+    assert "mode" not in at.session_state
     assert at.text_input, "the playlist URL input must be shown"
     assert not at.radio
 

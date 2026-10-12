@@ -715,7 +715,7 @@ class TestArtistAlbumPageRender:
         assert not at.exception
 
     def test_TC59_yc_mode_renders_without_exception(self):
-        at = self._run_page(session_state={"mode": "🔗 Your Collection"})
+        at = self._run_page(session_state={})
         assert not at.exception
 
     def test_TC60_without_audio_features_renders_without_exception(self):
