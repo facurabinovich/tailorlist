@@ -5,9 +5,13 @@ from db.connection import get_engine
 from sqlalchemy import text as _text
 
 
+_tables_ensured = False
 
 def _ensure_tables():
-    """Create persistence tables if they don't exist."""
+    """Create persistence tables if they don't exist. Runs once per process."""
+    global _tables_ensured
+    if _tables_ensured:
+        return
     engine = get_engine()
     with engine.begin() as conn:
         conn.execute(_text("""
@@ -42,6 +46,7 @@ def _ensure_tables():
                 KEY idx_created_at (created_at)
             )
         """))
+    _tables_ensured = True
 
 
 def load_cluster_progress(user_key: str) -> dict:
@@ -161,20 +166,26 @@ def save_cluster_progress_bulk(user_key: str, track_ids: list[str],
 
 def delete_done_progress(user_key: str, track_ids: Iterable[str]) -> None:
     """Delete 'done' progress rows for the given tracks (re-open clusters)."""
+    track_ids = tuple(track_ids)
+    if not track_ids:
+        return
     with get_engine().begin() as conn:
         conn.execute(
             _text("DELETE FROM user_cluster_progress "
                   "WHERE user_key = :uk AND status = 'done' "
                   "AND track_id IN :tids"),
-            {"uk": user_key, "tids": tuple(track_ids)},
+            {"uk": user_key, "tids": track_ids},
         )
 
 
 def delete_progress_for_tracks(user_key: str, track_ids: Iterable[str]) -> None:
     """Delete progress rows (any status) for the given tracks (keep visible)."""
+    track_ids = tuple(track_ids)
+    if not track_ids:
+        return
     with get_engine().begin() as conn:
         conn.execute(
             _text("DELETE FROM user_cluster_progress "
                   "WHERE user_key = :uk AND track_id IN :tids"),
-            {"uk": user_key, "tids": tuple(track_ids)},
+            {"uk": user_key, "tids": track_ids},
         )

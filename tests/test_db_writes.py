@@ -80,4 +80,14 @@ def test_errors_propagate(patch_get_engine):
     eng.begin.side_effect = RuntimeError("boom")
     patch_get_engine(lambda: eng)
     with pytest.raises(RuntimeError):
-        delete_done_progress("u", [])
+        delete_done_progress("u", ["t1"])
+
+
+def test_empty_track_ids_skip_the_query(patch_get_engine):
+    # An empty IN () is a MySQL syntax error; nothing to delete means no query at all.
+    from db.progress import delete_done_progress, delete_progress_for_tracks
+    eng = MagicMock()
+    patch_get_engine(lambda: eng)
+    delete_done_progress("u", [])
+    delete_progress_for_tracks("u", iter(()))
+    eng.begin.assert_not_called()

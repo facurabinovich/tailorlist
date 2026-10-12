@@ -308,7 +308,8 @@ def best_k(metrics_df: pd.DataFrame) -> tuple[int, int]:
     if len(inertias) >= 4:
         deltas = np.diff(inertias)
         second_deltas = np.diff(deltas)
-        best_elbow = int(metrics_df["k"].iloc[second_deltas.argmin() + 2])
+        # second_deltas[j] is centred on row j + 1
+        best_elbow = int(metrics_df["k"].iloc[second_deltas.argmax() + 1])
     else:
         best_elbow = best_sil  # fall back to silhouette when not enough points
 

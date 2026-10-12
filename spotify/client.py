@@ -14,6 +14,8 @@ import config  # noqa: F401  (loads .env before credentials are read)
 from config import is_dev_mode
 
 _HERE = Path(__file__).resolve().parent
+# User OAuth token cache (DEV_MODE only); ui/nav.py deletes it on Disconnect.
+OAUTH_CACHE_PATH = Path("/tmp") / ".spotify_cache"
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -70,7 +72,7 @@ def get_spotify_oauth_client() -> spotipy.Spotify | None:
             client_secret=client_secret,
             redirect_uri="http://127.0.0.1:8501",
             scope="playlist-modify-private playlist-modify-public",
-            cache_path=str(Path("/tmp") / ".spotify_cache"),
+            cache_path=str(OAUTH_CACHE_PATH),
             open_browser=False,
         ))
     except Exception:

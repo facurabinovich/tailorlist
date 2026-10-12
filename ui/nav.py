@@ -174,8 +174,8 @@ def inject_sidebar_nav(page: str = "Home"):
             ):
                 st.session_state.pop("sp_oauth", None)
                 st.session_state.pop("sp_user", None)
-                import pathlib
-                pathlib.Path(".spotify_cache").unlink(missing_ok=True)
+                from spotify.client import OAUTH_CACHE_PATH
+                OAUTH_CACHE_PATH.unlink(missing_ok=True)
 
 
 def check_collection_mode() -> bool:
