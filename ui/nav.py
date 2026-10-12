@@ -128,9 +128,9 @@ def inject_sidebar_nav(page: str = "Home"):
         except Exception:
             pass
 
-    # The app only has Your Collection now. setdefault semantics (not an
-    # overwrite): nothing sets FC anymore; the FC branches still in pages are
-    # removed in R2/R3.
+    # The app only has Your Collection now, and no page reads this key to decide
+    # anything. Setdefault semantics (not an overwrite); R4 decides whether the
+    # "mode" key stays at all.
     if not st.session_state.get("mode"):
         st.session_state["mode"] = MODE_YC
 
@@ -195,13 +195,12 @@ def inject_sidebar_nav(page: str = "Home"):
 def check_collection_mode() -> bool:
     """
     Call at the top of every page after inject_sidebar_nav().
-    If mode is Your Collection but no data exists yet, shows a prompt and returns False.
+    If no collection has been enriched yet (no ``uc_active``), shows a prompt and returns False.
     Pages should exit early if this returns False.
     Returns True if the page should render normally.
     """
     import streamlit as st
-    if (st.session_state.get("mode") == MODE_YC
-            and not st.session_state.get("uc_active")):
+    if not st.session_state.get("uc_active"):
         st.markdown("""
         <div style="display:flex;flex-direction:column;align-items:center;
                     justify-content:center;padding:4rem 2rem;text-align:center;">

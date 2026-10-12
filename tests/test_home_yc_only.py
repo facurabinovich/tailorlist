@@ -57,10 +57,11 @@ def test_nav_defaults_mode_to_yc_and_has_no_radio():
     assert not at.radio
 
 
-def test_nav_does_not_overwrite_an_explicit_mode():
+def test_nav_does_not_overwrite_an_existing_mode_value():
+    """The default is setdefault-style: whatever value a session already holds survives."""
     import streamlit as st
     from ui.nav import inject_sidebar_nav
-    state = {"mode": "🎵 Demo Collection", "visitor_id": "x"}
+    state = {"mode": "some-existing-mode", "visitor_id": "x"}
     with patch.object(st, "session_state", state), \
          patch.object(st, "sidebar", __import__("unittest.mock").mock.MagicMock()), \
          patch("streamlit.components.v1.html"):
@@ -68,7 +69,7 @@ def test_nav_does_not_overwrite_an_explicit_mode():
             inject_sidebar_nav("Home")
         except Exception:
             pass
-    assert state["mode"] == "🎵 Demo Collection"
+    assert state["mode"] == "some-existing-mode"
 
 
 @pytest.mark.parametrize("value", ["demo", "uc"])

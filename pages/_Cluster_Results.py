@@ -8,14 +8,12 @@ from datetime import datetime
 from config import CLUSTER_FEATURES
 from core.clustering import verbose_description as _verbose_description
 from config import is_dev_mode
-from app_state.session import MODE_FC, MODE_YC
 from db.queries import (
     load_cluster_progress, save_cluster_progress, save_cluster_progress_bulk,
 )
 from ui.export import render_export_to_spotify
 from ui.theme import inject_global_css
 from ui.nav import check_collection_mode
-from app_state.clusters import _load_unmatched_fc, _load_unmatched
 from ui.components import cluster_card, info_box, hr, section_title
 
 
@@ -97,7 +95,6 @@ group_by_decade  = r.get("group_by_decade", True)
 group_by_genre   = r.get("group_by_genre", True)
 _is_category_mode = grouping_mode == "🗂️ By category"
 _is_sgl_mode      = grouping_mode == "🏷️ By specific genre"
-_current_mode    = st.session_state.get("mode", MODE_FC)
 df_unmatched_cat = r.get("df_unmatched_cat", pd.DataFrame())
 
 # Human-readable label for the grouping dimensions used in category mode
@@ -110,11 +107,7 @@ if _is_category_mode:
 _grp_dim_str = " or ".join(_grp_dim_parts) if _grp_dim_parts else "grouping data"
 
 # ── user_key ──────────────────────────────────────────────────────────────────
-user_key = (
-    st.session_state.get("uc_session_id", "anonymous")
-    if _current_mode == MODE_YC
-    else "facu"
-)
+user_key = st.session_state.get("uc_session_id", "anonymous")
 
 
 def _track(event: str, **props):

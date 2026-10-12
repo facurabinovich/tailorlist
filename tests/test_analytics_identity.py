@@ -93,7 +93,7 @@ def _results():
 @pytest.fixture
 def results_app():
     at = AppTest.from_file(RESULTS_PAGE, default_timeout=60)
-    at.session_state["mode"] = "🎵 Demo Collection"
+    at.session_state["uc_active"] = True
     at.session_state["visitor_id"] = VID
     at.session_state["clustering_results"] = _results()
     return at

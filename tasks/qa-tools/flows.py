@@ -17,7 +17,10 @@ def new_session(b):
     ctx = b.new_context(viewport={'width': 1400, 'height': 900})
     pg = ctx.new_page()
     pg.goto(base); pg.wait_for_timeout(7000)
-    pg.locator('[data-testid="stSidebar"] label', has_text=label).first.click(); pg.wait_for_timeout(5000)
+    # The mode radio is gone since R1 (YC only); click it only where it still exists
+    radio = pg.locator('[data-testid="stSidebar"] label', has_text=label)
+    if radio.count():
+        radio.first.click(); pg.wait_for_timeout(5000)
     return ctx, pg
 
 def goto_clusters(pg):

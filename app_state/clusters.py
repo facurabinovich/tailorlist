@@ -10,11 +10,9 @@ import pandas as pd
 import streamlit as st
 
 from app_state import collection as _collection
-from app_state.session import MODE_YC
 from config import CLUSTER_FEATURES
 from core.clustering import k_metrics, kmeans_cluster
 from core.tracks import cluster_pool_frame, yc_unmatched_frame
-from db.tracks import load_cluster_data, load_unmatched_tracks, load_all_tracks_for_grouping
 
 
 @st.cache_data(show_spinner=False)
@@ -45,38 +43,17 @@ def compute_k_metrics(df_all: pd.DataFrame, track_ids_tuple: tuple) -> pd.DataFr
 
 
 # ── Track loading for My Clusters / Cluster Results ──────────────────────────
-# Moved from pages/6_My_Clusters.py and pages/_Cluster_Results.py (T18). The Refresh
-# button in My Clusters calls .clear() on load_data_fc and load_all_grouping_fc, so those
-# two cached objects must stay importable under these names.
+# Moved from pages/6_My_Clusters.py and pages/_Cluster_Results.py (T18). Both read the
+# user's collection from the session (Your Collection); nothing here touches the DB.
 
-@st.cache_data(show_spinner="Loading tracks...", ttl=300)
-def load_data_fc() -> pd.DataFrame:
-    return load_cluster_data().drop_duplicates(subset="track_id")
-
-
-@st.cache_data(show_spinner=False, ttl=300)
-def load_all_grouping_fc() -> pd.DataFrame:
-    """All personal tracks regardless of audio features — cached for preview use."""
-    return load_all_tracks_for_grouping()
-
-
-def load_data(mode: str = "") -> pd.DataFrame:
-    """Tracks with audio features to cluster: DB (cached) in Demo mode, session in YC."""
-    if mode != MODE_YC:
-        return load_data_fc()
+def load_data() -> pd.DataFrame:
+    """Tracks with audio features to cluster, from the user's collection in the session."""
     # Looked up on the module so patches of app_state.collection.get_tracks apply.
     return cluster_pool_frame(_collection.get_tracks(), CLUSTER_FEATURES)
 
 
-@st.cache_data(show_spinner=False)
-def _load_unmatched_fc() -> pd.DataFrame:
-    return load_unmatched_tracks()
-
-
-def _load_unmatched(mode: str) -> pd.DataFrame:
-    """Tracks without audio features: DB (cached) in Demo mode, skipped + failed in YC."""
-    if mode != MODE_YC:
-        return _load_unmatched_fc()
+def _load_unmatched() -> pd.DataFrame:
+    """Tracks without audio features: the skipped + failed ones in the session."""
     return yc_unmatched_frame(
         st.session_state.get("uc_skipped", []),
         st.session_state.get("uc_failed", []),

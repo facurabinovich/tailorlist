@@ -1,6 +1,6 @@
 # Tareas: refactor de arquitectura
 
-> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). R1 y R2 hechas (2026-10-12); sigue **R3**. Suite: 600 tests, ~3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H9 (H8 resuelto en R2).
+> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). R1–R3 hechas (2026-10-12); sigue **R4**. Suite: 600 tests, ~3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H9 (H8 resuelto en R2).
 
 Plan: [`plan.md`](plan.md) · Spec: [`SPEC.md`](../SPEC.md)
 
@@ -159,11 +159,13 @@ Arranca después del Checkpoint 3, que valida las Fases 1–3 con FC todavía pr
   - Acceptance: Overview, Playlist Detail, Artist/Album, Comparison y Audio DNA sin ramas FC. `app_state/collection.py` sin la rama DB, y H8 (los wrappers sin uso) se elimina. `check_collection_mode` sigue mostrando "No collection yet" sin colección.
   - Verify: suite; los textos YC de esas páginas son idénticos a la línea base.
   - Files: las 5 páginas, `app_state/collection.py`, tests.
-- [ ] **R3: My Clusters y Cluster Results solo YC** · M
+- [x] **R3: My Clusters y Cluster Results solo YC** · M
+  - Hecho (2026-10-12): sin ramas FC ni botón Refresh; `load_data()`/`_load_unmatched()` sin `mode` y sin loaders FC; `check_collection_mode` mira solo `uc_active`. `user_key` queda `uc_session_id` o `"anonymous"`. App real: los 11 pasos de los flujos (KMeans k=4, categoría, género específico, asignación manual con guardado y vuelta a My Clusters) dan texto idéntico a una referencia corrida sobre R2 (que a su vez coincide con `checkpoint3/new/YC_*` salvo el selector); capturas idénticas salvo 1 px de antialiasing y un aviso capturado a mitad de rerun. 9 páginas estáticas idénticas a R2. Suite: 600 en ambos órdenes.
   - Acceptance: sin ramas FC, sin el botón Refresh (solo FC), sin los loaders FC cacheados en `app_state/clusters.py`. Los tres modos de agrupación siguen andando en YC, y también la asignación manual, el progreso, el reset y la re-apertura.
   - Verify: suite; flujos A/B YC del Checkpoint 3 idénticos.
   - Files: `pages/6_My_Clusters.py`, `pages/_Cluster_Results.py`, `app_state/clusters.py`, tests.
 - [ ] **R4: Código muerto de FC** · S
+  - Pendientes que dejaron R1–R3: `MODE_FC`/`MODE_YC` y la clave `"mode"` (la nav la sigue seteando; ya nadie la lee salvo el clear de primera visita de My Clusters vía `_clusters_mode`), el texto "playlists powering Demo Collection" en `pages/8_Contact.py:102`, y el fallback `"fc_user"` de `session_id` en los eventos de analytics.
   - Acceptance: se borran los loaders del star schema en `db/tracks.py` que ya no usa nadie, `config.PLAYLIST_LABELS`/`_DEV_PLAYLIST_LABELS`/`_DEMO_PLAYLIST_LABELS` si quedan sin uso, y los tests de esos loaders. Se queda lo que YC usa (sessions, progress, analytics, `load_uc_session`…). `pipeline/` no se toca (T28).
   - Verify: suite; grep sin referencias colgando; test de arquitectura verde.
 

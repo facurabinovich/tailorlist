@@ -3,11 +3,10 @@
 Safety net for the architecture refactor: these run the REAL page scripts through
 ``AppTest`` and fail if a page crashes or silently renders nothing.
 
-Data and modes
-  * Your Collection (YC): the real ``db.queries.get_all_tracks/get_tracks`` code
-    path, fed from ``data/dev_collection.json`` placed in session state.
-  * Demo Collection (FC): the DB loaders in ``db.queries`` are patched with frames
-    derived from the same JSON, exactly where the pages look them up. No fake DB.
+Data
+  * The app only works with Your Collection (the Demo Collection mode is gone): the real
+    ``app_state.collection`` code path, fed from ``data/dev_collection.json`` placed in
+    session state. Only the progress loader is patched, so nothing reaches a database.
 
 AppTest quirks handled here (see ``app`` fixture):
   * ``st.context.cookies`` is a MagicMock inside AppTest, which breaks
@@ -29,77 +28,21 @@ from streamlit.runtime.scriptrunner_utils.exceptions import StopException
 from streamlit.testing.v1 import AppTest
 
 import db.queries as q
-import app_state.collection as collection
-import app_state.clusters as clusters_state
 
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGES_DIR = ROOT / "pages"
 COLLECTION = json.loads((ROOT / "data" / "dev_collection.json").read_text(encoding="utf-8"))
 
-FC = "🎵 Demo Collection"
 YC = "🔗 Your Collection"
 KMEANS = "🔬 By audio similarity (KMeans)"
 CATEGORY = "🗂️ By category"
 
-_FEATURES = ["energy", "acousticness", "valence", "tempo", "danceability",
-             "loudness", "instrumentalness", "speechiness", "liveness"]
-
 
 # ── Mock data ────────────────────────────────────────────────────────────────
-def _to_frame(rows: list[dict]) -> pd.DataFrame:
-    """Same column mapping as db.queries.get_all_tracks (YC branch)."""
-    df = pd.DataFrame(rows).rename(columns={
-        "id": "track_id", "name": "track_name", "artists": "artist_name",
-        "popularity": "popularity_raw", "album": "album_name",
-        "duration_ms": "duration_raw"})
-    df["release_year"] = q._parse_release_year(df["release_date"])
-    df["decade"] = (df["release_year"] // 10 * 10).where(df["release_year"].notna())
-    return q._add_artist_display(df)
-
-
-def _patch_fc_loaders(mp: pytest.MonkeyPatch) -> None:
-    """Patch the DB loaders the pages import from db.queries (Demo Collection)."""
-    c = COLLECTION
-    all_tracks = _to_frame(c["enriched"] + c["skipped"] + c["failed"])
-    with_af = _to_frame(c["enriched"])
-    meta = pd.DataFrame(c["playlists"]).rename(
-        columns={"name": "playlist_name", "track_count": "total_tracks"})
-    meta["description"] = ""
-
-    def added_by_month(playlist_name):
-        d = all_tracks[all_tracks["playlist_name"] == playlist_name]
-        month = pd.to_datetime(d["added_at"]).dt.strftime("%Y-%m")
-        return d.groupby(month).size().rename_axis("year_month").reset_index(name="track_count")
-
-    cluster_cols = ["track_id", "track_name", "playlist_name", "artist_name", "energy",
-                    "acousticness", "valence", "tempo", "danceability", "speechiness",
-                    "artist_genres", "decade", "artist_display"]
-    patches = {
-        "load_all_tracks": lambda: all_tracks,
-        "load_tracks": lambda: with_af,
-        "load_audio_features_by_playlist":
-            lambda: with_af.groupby("playlist_name")[_FEATURES].mean().reset_index(),
-        "load_playlist_meta": lambda: meta,
-        "load_playlist_track_counts":
-            lambda: with_af.groupby("playlist_name").size().reset_index(name="track_count"),
-        "load_tracks_added_by_month": added_by_month,
-        "load_cluster_data": lambda: with_af[cluster_cols],
-        "load_unmatched_tracks": lambda: _to_frame(c["skipped"]),
-        "load_all_tracks_for_grouping": lambda: all_tracks,
-        "load_cluster_progress": lambda user_key: {},
-    }
-    for name, fn in patches.items():
-        mp.setattr(q, name, fn)
-    # The session-aware wrappers (get_tracks, get_all_tracks, ...) look their DB loaders up
-    # in app_state.collection, so patch the loaders they use there too.
-    for name, fn in patches.items():
-        if hasattr(collection, name):
-            mp.setattr(collection, name, fn)
-    # app_state.clusters binds the cluster/unmatched/grouping loaders by name too.
-    for name, fn in patches.items():
-        if hasattr(clusters_state, name):
-            mp.setattr(clusters_state, name, fn)
+def _patch_db_loaders(mp: pytest.MonkeyPatch) -> None:
+    """No saved cluster progress, and no database access, for My Clusters / Results."""
+    mp.setattr(q, "load_cluster_progress", lambda user_key: {})
 
 
 def _yc_state(at: AppTest) -> None:
@@ -115,10 +58,10 @@ def _yc_state(at: AppTest) -> None:
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 @pytest.fixture(autouse=True)
 def app(monkeypatch):
-    """AppTest workarounds + FC loader patches (see module docstring)."""
+    """AppTest workarounds + the progress-loader patch (see module docstring)."""
     monkeypatch.setattr(st, "context", types.SimpleNamespace(cookies={}))
     monkeypatch.setattr(st, "page_link", lambda *a, **k: None)
-    _patch_fc_loaders(monkeypatch)
+    _patch_db_loaders(monkeypatch)
 
 
 @pytest.fixture
@@ -155,7 +98,7 @@ def _plotly(at: AppTest) -> int:
     return len(at.get("plotly_chart"))
 
 
-# ── The 9 regular pages, in both modes ───────────────────────────────────────
+# ── The 9 regular pages ───────────────────────────────────────
 # (page, markdown snippets that must be present, min plotly charts)
 PAGE_EXPECTATIONS = [
     ("0_home", ["Your Collection"], 0),
@@ -170,14 +113,9 @@ PAGE_EXPECTATIONS = [
 ]
 
 
-# Pages 1-5 are YC-only since R2. FC stays for the pages R3 still has to migrate
-# (and for the mode-agnostic ones) until R3 removes it.
-_YC_ONLY_PAGES = {"1_Overview", "2_Playlist_Detail", "3_Artist_Album",
-                  "4_Playlist_Comparison", "5_Audio_DNA"}
 _RENDER_PARAMS = [
-    pytest.param(page, snippets, min_charts, mode, id=f"{page}-{'FC' if mode == FC else 'YC'}")
+    pytest.param(page, snippets, min_charts, YC, id=f"{page}-YC")
     for page, snippets, min_charts in PAGE_EXPECTATIONS
-    for mode in ([YC] if page in _YC_ONLY_PAGES else [FC, YC])
 ]
 
 
@@ -194,10 +132,12 @@ def test_page_renders(page, snippets, min_charts, mode):
 # Home, Glossary and Contact do not call check_collection_mode, so they never gate.
 @pytest.mark.parametrize("page", [p[0] for p in PAGE_EXPECTATIONS
                                   if p[0] not in ("0_home", "7_Glossary", "8_Contact")])
-def test_yc_without_collection_shows_prompt(page):
-    """YC mode with nothing enriched: the page stops at the 'No collection yet' prompt."""
+@pytest.mark.parametrize("mode", [None, YC, "anything"], ids=["no-mode", "YC", "other-mode"])
+def test_without_collection_shows_prompt(page, mode):
+    """Nothing enriched (whatever the mode value): the page stops at the 'No collection yet' prompt."""
     at = _page(page)
-    at.session_state["mode"] = YC
+    if mode is not None:
+        at.session_state["mode"] = mode
     at.run()
     assert not at.exception, at.exception
     assert "No collection yet" in _md(at)
@@ -206,7 +146,7 @@ def test_yc_without_collection_shows_prompt(page):
 
 def test_my_clusters_run_redirects_to_results(redirects):
     """Click Run on the real KMeans path: results land in state, then redirect."""
-    at = _page("6_My_Clusters", FC).run()
+    at = _page("6_My_Clusters", YC).run()
     at.button(key="run_clustering_btn").click()
     at.run()
     assert not at.exception, at.exception
@@ -230,7 +170,7 @@ def test_enrich_without_playlists_redirects_home(redirects):
 
 
 def test_cluster_results_without_results_offers_way_back(redirects):
-    at = _page("_Cluster_Results", FC).run()
+    at = _page("_Cluster_Results", YC).run()
     assert not at.exception, at.exception
     assert at.warning and "No clustering results" in at.warning[0].value
     assert redirects == []                       # nothing redirects by itself
@@ -267,9 +207,9 @@ def _category_results() -> dict:
     }
 
 
-def _kmeans_results(mode: str, redirects: list[str]) -> dict:
+def _kmeans_results(redirects: list[str]) -> dict:
     """Produce genuine KMeans results by running My Clusters and clicking Run."""
-    at = _page("6_My_Clusters", mode).run()
+    at = _page("6_My_Clusters", YC).run()
     at.button(key="run_clustering_btn").click()
     at.run()
     assert not at.exception, at.exception
@@ -277,11 +217,10 @@ def _kmeans_results(mode: str, redirects: list[str]) -> dict:
     return at.session_state["clustering_results"]
 
 
-@pytest.mark.parametrize("mode", [FC, YC], ids=["FC", "YC"])
 @pytest.mark.parametrize("grouping", [KMEANS, CATEGORY], ids=["kmeans", "category"])
-def test_cluster_results_renders(grouping, mode, redirects):
-    results = _kmeans_results(mode, redirects) if grouping == KMEANS else _category_results()
-    at = _page("_Cluster_Results", mode)
+def test_cluster_results_renders(grouping, redirects):
+    results = _kmeans_results(redirects) if grouping == KMEANS else _category_results()
+    at = _page("_Cluster_Results", YC)
     at.session_state["clustering_results"] = results
     at.run()
     assert not at.exception, at.exception

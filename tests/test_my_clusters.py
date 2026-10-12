@@ -391,7 +391,7 @@ except ImportError:
 
 
 def _make_full_df():
-    """Mock df returned by load_cluster_data for FC mode."""
+    """Mock df returned by the collection (get_tracks) for Your Collection."""
     rng = np.random.default_rng(5)
     rows = []
     for pl in ["PL1", "PL2"]:
@@ -463,38 +463,16 @@ def _make_clustering_results(df_all: pd.DataFrame) -> dict:
     }
 
 
-def _empty_unmatched_df():
-    return pd.DataFrame(columns=[
-        "track_id", "track_name", "artist_name", "artist_display",
-        "release_year", "artist_genres", "playlist_name",
-    ])
-
-
 @pytest.mark.skipif(not APPTEST_AVAILABLE, reason="streamlit.testing not available")
 class TestMyClustersPageRender:
-
-    @pytest.fixture(autouse=True)
-    def _db_loaders_unavailable(self):
-        """The page also reads load_all_tracks (collection size) and
-        load_all_tracks_for_grouping (grouping preview); nothing patched them, so
-        they hit the DB and the failure was swallowed by the page's own fallback.
-        That only looked fine because an earlier test file leaked a stubbed
-        get_engine into db.queries. Make the failure explicit where the page looks
-        the loaders up, so these tests exercise the same fallback on any order."""
-        down = RuntimeError("DB unavailable in tests")
-        with patch("db.queries.load_all_tracks", side_effect=down), \
-             patch("db.queries.load_all_tracks_for_grouping", side_effect=down), \
-             patch("app_state.clusters.load_all_tracks_for_grouping", side_effect=down):
-            yield
 
     def _base_patches(self, mock_df=None):
         if mock_df is None:
             mock_df = _make_full_df()
         return (
-            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
+            patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -508,10 +486,9 @@ class TestMyClustersPageRender:
         mock_df = _make_full_df()
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=30)
         with (
-            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
+            patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -527,16 +504,13 @@ class TestMyClustersPageRender:
         mock_df = _make_full_df()
         all_ids = mock_df["track_id"].unique().tolist()
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=30)
-        at.session_state["mode"] = "🔗 Your Collection"
         at.session_state["uc_enriched"] = _uc_tracks(all_ids)
         at.session_state["uc_skipped"] = []
         at.session_state["uc_failed"] = []
         with (
-            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
             patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -554,16 +528,13 @@ class TestMyClustersPageRender:
         mock_df = _make_full_df()
         all_ids = mock_df["track_id"].unique().tolist()
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=30)
-        at.session_state["mode"] = "🔗 Your Collection"
         at.session_state["uc_enriched"] = _uc_tracks(all_ids[:6])
         at.session_state["uc_skipped"] = _uc_tracks(all_ids[6:])
         at.session_state["uc_failed"] = []
         with (
-            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
             patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -583,10 +554,9 @@ class TestMyClustersPageRender:
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=60)
         at.session_state["clustering_results"] = cr
         with (
-            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
+            patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -606,10 +576,9 @@ class TestMyClustersPageRender:
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=60)
         at.session_state["clustering_results"] = cr
         with (
-            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
+            patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -672,10 +641,9 @@ class TestMyClustersPageRender:
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=60)
         at.session_state["clustering_results"] = cr
         with (
-            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
+            patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -697,10 +665,9 @@ class TestMyClustersPageRender:
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=60)
         at.session_state["clustering_results"] = cr
         with (
-            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
+            patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
@@ -728,10 +695,9 @@ class TestMyClustersPageRender:
         at = AppTest.from_file("pages/6_My_Clusters.py", default_timeout=60)
         at.session_state["clustering_results"] = cr
         with (
-            patch("app_state.clusters.load_cluster_data", return_value=mock_df),
+            patch("app_state.collection.get_tracks", return_value=mock_df),
             patch("db.queries.load_cluster_progress", return_value={}),
             patch("db.queries.save_cluster_progress"),
-            patch("app_state.clusters.load_unmatched_tracks", return_value=_empty_unmatched_df()),
             patch("db.queries._add_artist_display", side_effect=lambda df: df),
             patch("ui.theme.inject_global_css"),
             patch("ui.nav.inject_sidebar_nav"),
