@@ -69,3 +69,4 @@ agent-skills/
 # Refactor visual baseline (screenshots, large)
 tasks/baseline/
 tasks/checkpoint*/
+tasks/postreview/
