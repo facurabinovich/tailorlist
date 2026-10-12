@@ -189,7 +189,8 @@ página; si una queda por encima, se justifica en el commit.
 - [ ] **T21: Artist/Album** (más `_album_goto`) · M
 - [ ] **T22: Playlist Comparison** (lógica de duplicados exactos y versiones distintas a `core/`) · M
 - [ ] **T23: Audio DNA** (layout y colores a `ui/charts.py`) · M
-- [ ] **T24: Glossary y Contact** · S
+- [x] **T24: Glossary y Contact** · S
+  - Hecho (2026-10-12): los términos del glosario y la búsqueda pasan a `core/glossary.py` (`GLOSSARY_TERMS`, `search_terms`, `group_by_section`; base de una tool para explicar términos). Glossary: 326 → 65 líneas. Contact no tiene lógica: sin cambios. App real: vista por defecto y 3 búsquedas idénticas a HEAD (`qa-tools/glossary_search.py`).
 - [ ] **T25: Home y Enrich** (flujo YC: playlists en la URL, recuperación de sid, ETA) · M
 - [~] ~~**T26: My Clusters (render)**~~: cancelada por el pivot. El agente reemplaza este flujo; su lógica ya se extrae en T15–T18.
 - [~] ~~**T27: Cluster Results (render)**~~: cancelada por el pivot.
