@@ -2,7 +2,9 @@ import uuid as _uuid
 import streamlit as st
 
 from config import is_dev_mode
-from app_state.session import resolve_sid, mark_uc_session_unavailable, _UUID_RE
+from app_state.session import (
+    resolve_sid, mark_uc_session_unavailable, needs_restore, apply_restored_session, _UUID_RE,
+)
 
 # YC sessions expire server-side 7 days after creation (see load_uc_session)
 _SID_COOKIE_MAX_AGE = 7 * 24 * 60 * 60
@@ -91,21 +93,12 @@ def inject_sidebar_nav(page: str = "Home"):
     # resolve_sid() already rejects malformed values before any DB lookup, and
     # falls back to the cookie so a bookmarked URL still finds the collection.
     _sid = resolve_sid()
-    if (_sid
-            and not st.session_state.get("uc_active")
-            and not st.session_state.get("_dev_loaded")
-            and not st.session_state.get("_adding_playlist")):
+    if needs_restore(_sid):
         from app_state.session import load_uc_session
         try:
             _session = load_uc_session(_sid)
             if _session:
-                st.session_state["uc_enriched"]         = _session["enriched"]
-                st.session_state["uc_skipped"]          = _session["skipped"]
-                st.session_state["uc_failed"]           = _session["failed"]
-                st.session_state["uc_playlists"]        = _session["playlists"]
-                st.session_state["uc_active"]           = True
-                st.session_state["uc_enrichment_state"] = "idle"
-                st.session_state["uc_session_id"]       = _sid
+                apply_restored_session(_session, _sid)
             else:
                 # Expired, or the DB was unreachable — stop retrying this run,
                 # but keep the cookie so a transient outage isn't permanent

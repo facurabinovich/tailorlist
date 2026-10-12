@@ -3,15 +3,21 @@ import math as _math
 
 import streamlit as st
 from config import PAGE_CONFIG
-from config import is_dev_mode
 
 st.set_page_config(**PAGE_CONFIG)
 
 from ui.theme import inject_global_css
 inject_global_css()
 
-from pipeline.enrich import _fetch, _map_fields, _fetch_fallback
 from spotify.client import get_playlist_tracks
+from app_state.enrichment import (
+    cancel_enrichment, complete_enrichment, init_run_state, process_track,
+    set_pending_tracks, take_snapshot_once, track_enrichment_start,
+)
+from core.enrichment import (
+    estimate_eta, estimated_remaining_min, progress_fraction, retry_note,
+    rotation_index, wait_tier,
+)
 
 import base64
 with open("assets/spotify-logo-icon/Primary_Logo_Green_RGB.svg", "rb") as f:
@@ -26,34 +32,11 @@ if not st.session_state.get("uc_playlists"):
     st.session_state["uc_enrichment_state"] = "idle"
     st.switch_page("pages/0_home.py")
 
-if not is_dev_mode() and not st.session_state.get("_enrichment_start_tracked"):
-    try:
-        from db.queries import track_event
-        # Use uc_playlists hash as a proxy session id since uc_session_id not set yet
-        _proxy_sid = str(hash(tuple(
-            p["id"] for p in st.session_state.get("uc_playlists", [])
-        )))
-        track_event(
-            event      = "enrichment_start",
-            page       = "Enrich",
-            session_id = _proxy_sid,
-            visitor_id = st.session_state.get("visitor_id"),
-        )
-        st.session_state["_enrichment_start_tracked"] = True
-    except Exception:
-        pass
+track_enrichment_start()
 
 # uc_enriched is preserved across runs (incremental enrichment)
 # uc_skipped and uc_failed are reset each run — they reflect only the current run
-if "uc_enriched" not in st.session_state:
-    st.session_state["uc_enriched"] = []
-
-# Always reset skipped/failed at the start of a new enrichment run
-# Use a flag to ensure we only reset once per run, not on every rerun
-if not st.session_state.get("_enrich_run_started"):
-    st.session_state["uc_skipped"]         = []
-    st.session_state["uc_failed"]          = []
-    st.session_state["_enrich_run_started"] = True
+init_run_state()
 
 # ---------------------------------------------------------------------------
 # Header
@@ -108,35 +91,8 @@ if "uc_all_tracks" not in st.session_state:
             else:
                 st.error("Something went wrong fetching your tracks. Try again.")
             st.stop()
-    # IDs already successfully enriched → skip
-    enriched_ids = {
-        t.get("id") or t.get("track_id")
-        for t in st.session_state["uc_enriched"]
-    }
-    enriched_ids.discard(None)
-
-    # IDs previously skipped (not in ReccoBeats or fallback) → skip again, won't help
-    skipped_ids = {
-        t.get("name", "") + "||" + t.get("artists", "")
-        for t in st.session_state.get("uc_skipped", [])
-    }
-    # Match skipped by spotify id if available, otherwise by name||artists
-    skipped_spotify_ids = {
-        t.get("id") or t.get("track_id")
-        for t in st.session_state.get("uc_skipped", [])
-        if t.get("id") or t.get("track_id")
-    }
-
-    # IDs that failed (API errors) → retry these
-    # They are NOT excluded so they get another chance
-
-    st.session_state["uc_all_tracks"] = [
-        t for t in all_tracks
-        if t["id"] not in enriched_ids
-        and t["id"] not in skipped_spotify_ids
-    ]
-    st.session_state["uc_enrichment_cursor"] = 0
-    st.session_state["_enrich_start_time"] = time.time()
+    # Skip tracks already enriched or previously skipped; failed ones are retried
+    set_pending_tracks(all_tracks)
     st.rerun()
 
 to_enrich = st.session_state["uc_all_tracks"]
@@ -148,74 +104,13 @@ total     = len(to_enrich)
 # Used by the cancel button to restore a previously-enriched collection
 # instead of wiping everything.
 # ---------------------------------------------------------------------------
-if "_pre_enrich_snapshot" not in st.session_state:
-    _new_pl_names = {t.get("playlist_name") for t in to_enrich}
-    _old_playlists = [
-        p for p in st.session_state.get("uc_playlists", [])
-        if p["name"] not in _new_pl_names
-    ]
-    st.session_state["_pre_enrich_snapshot"] = {
-        "enriched":   list(st.session_state.get("uc_enriched", [])),
-        "playlists":  _old_playlists,
-        "session_id": st.session_state.get("uc_session_id"),
-    }
+take_snapshot_once(to_enrich)
 
 # ---------------------------------------------------------------------------
 # Completion — navigate back to Home
 # ---------------------------------------------------------------------------
 if not to_enrich or cursor >= total:
-    st.session_state["uc_enrichment_state"] = "complete"
-    st.session_state["uc_active"] = True
-    st.session_state.pop("uc_all_tracks", None)
-    st.session_state.pop("_enrich_run_started", None)
-    st.session_state.pop("_enrichment_start_tracked", None)
-    st.session_state.pop("_pre_enrich_snapshot", None)
-    st.session_state.pop("_enrich_start_time", None)
-
-    import uuid
-    from db.queries import save_uc_session
-
-    # Generate session ID if not already set
-    if not st.session_state.get("uc_session_id"):
-        st.session_state["uc_session_id"] = str(uuid.uuid4())
-
-    # Persist YC session to MySQL (skipped in DEV_MODE)
-    if not is_dev_mode():
-        try:
-            save_uc_session(
-                session_id = st.session_state["uc_session_id"],
-                enriched   = st.session_state.get("uc_enriched", []),
-                skipped    = st.session_state.get("uc_skipped", []),
-                failed     = st.session_state.get("uc_failed", []),
-                playlists  = st.session_state.get("uc_playlists", []),
-            )
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning("Failed to save YC session: %s", e)
-
-    # Track enrichment completion
-    if not is_dev_mode():
-        try:
-            from db.queries import track_event
-            from db.analytics import backfill_enrichment_session
-            _real_sid = st.session_state.get("uc_session_id")
-            track_event(
-                event      = "enrichment_complete",
-                page       = "Enrich",
-                session_id = _real_sid,
-                visitor_id = st.session_state.get("visitor_id"),
-            )
-            # Backfill the enrichment_start row with the real session_id
-            backfill_enrichment_session(
-                _real_sid,
-                str(hash(tuple(
-                    p["id"] for p in st.session_state.get("uc_playlists", [])
-                ))),
-            )
-        except Exception:
-            pass
-
-    st.session_state["_pending_sid"] = st.session_state["uc_session_id"]
+    complete_enrichment()
     st.switch_page("pages/0_home.py")
 
 # ---------------------------------------------------------------------------
@@ -234,23 +129,16 @@ st.markdown("---")
 # ---------------------------------------------------------------------------
 # Progress
 # ---------------------------------------------------------------------------
-n_failed_prev = len(st.session_state.get("uc_failed", []))
-retry_note = f" (includes {n_failed_prev} retried)" if n_failed_prev else ""
-st.progress(cursor / total, text=f"Enriching tracks… {cursor}/{total}{retry_note}")
+st.progress(progress_fraction(cursor, total),
+            text=f"Enriching tracks… {cursor}/{total}{retry_note(len(st.session_state.get('uc_failed', [])))}")
 
 n_ok   = len(st.session_state["uc_enriched"])
 n_skip = len(st.session_state["uc_skipped"])
 n_fail = len(st.session_state["uc_failed"])
 
 _start_t = st.session_state.get("_enrich_start_time")
-if _start_t and cursor > 0:
-    _elapsed = time.time() - _start_t
-    _rate    = cursor / _elapsed          # tracks/sec
-    _secs_left = (total - cursor) / _rate
-    _m, _s   = divmod(int(_secs_left), 60)
-    _eta_str = f"~{_m}m {_s}s left" if _m else f"~{_s}s left"
-else:
-    _eta_str = "estimating…"
+_eta = estimate_eta(cursor, total, (time.time() - _start_t) if _start_t else None)
+_eta_str = _eta.label
 
 st.caption(f"✅ {n_ok}  ⚠️ {n_skip}  ❌ {n_fail} &nbsp;·&nbsp; ⏱ {_eta_str}")
 
@@ -259,11 +147,7 @@ st.markdown("---")
 # ---------------------------------------------------------------------------
 # Contextual wait message — adapts to elapsed time
 # ---------------------------------------------------------------------------
-# Use actual observed remaining time if available, else fall back to fixed rate
-if _start_t and cursor > 0:
-    _est_remaining_min = _secs_left / 60
-else:
-    _est_remaining_min = (total - cursor) / 26  # ~26 tracks/min empirical
+_est_remaining_min = estimated_remaining_min(cursor, total, _eta)
 
 _SHORT_TIPS = [
     ("☕", "Go make a coffee and shuffle your favourite playlist — we'll see if it matches our insights."),
@@ -295,9 +179,10 @@ _LONG_ALBUMS = [
 ]
 
 # Rotate every ~60 seconds (1 track ≈ 1 sec)
-_rot = (cursor // 60) % max(len(_SHORT_TIPS), len(_MEDIUM_ALBUMS), len(_LONG_ALBUMS))
+_rot = rotation_index(cursor, len(_SHORT_TIPS), len(_MEDIUM_ALBUMS), len(_LONG_ALBUMS))
+_tier = wait_tier(_est_remaining_min)
 
-if _est_remaining_min < 15:
+if _tier == "short":
     _icon, _tip = _SHORT_TIPS[_rot % len(_SHORT_TIPS)]
     st.markdown(
         f"<div style='background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;"
@@ -307,7 +192,7 @@ if _est_remaining_min < 15:
         f"</div>",
         unsafe_allow_html=True,
     )
-elif _est_remaining_min < 30:
+elif _tier == "medium":
     _artist, _album, _dur = _MEDIUM_ALBUMS[_rot % len(_MEDIUM_ALBUMS)]
     st.markdown(
         f"<div style='background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;"
@@ -338,120 +223,14 @@ else:
 # Cancel button
 # ---------------------------------------------------------------------------
 if st.button("🗑️ Cancel and start over", type="secondary", use_container_width=True):
-    _snapshot = st.session_state.pop("_pre_enrich_snapshot", None)
-
-    # Always clear current-run state
-    for k in ("uc_playlists", "uc_enriched", "uc_failed", "uc_skipped",
-              "uc_active", "uc_enrichment_state", "uc_enrichment_cursor",
-              "uc_all_tracks", "_enrich_run_started", "_enrichment_start_tracked",
-              "uc_session_id", "_enrich_start_time"):
-        st.session_state.pop(k, None)
-    st.query_params.clear()
-
-    # If there was a previously-enriched collection, restore it
-    _prev_enriched  = _snapshot.get("enriched")   if _snapshot else None
-    _prev_playlists = _snapshot.get("playlists")  if _snapshot else None
-    _prev_sid       = _snapshot.get("session_id") if _snapshot else None
-
-    if _prev_enriched or _prev_sid:
-        # Prefer reloading from DB so skipped/failed are also restored
-        _restored = False
-        if _prev_sid:
-            try:
-                from db.queries import load_uc_session
-                _db_session = load_uc_session(_prev_sid)
-                if _db_session:
-                    st.session_state["uc_enriched"]          = _db_session["enriched"]
-                    st.session_state["uc_skipped"]           = _db_session["skipped"]
-                    st.session_state["uc_failed"]            = _db_session["failed"]
-                    st.session_state["uc_playlists"]         = _db_session["playlists"]
-                    st.session_state["uc_session_id"]        = _prev_sid
-                    st.session_state["uc_active"]            = True
-                    st.session_state["uc_enrichment_state"]  = "idle"
-                    st.query_params["sid"]                   = _prev_sid
-                    _restored = True
-            except Exception:
-                pass
-
-        if not _restored and _prev_enriched:
-            # Fall back to in-memory snapshot
-            st.session_state["uc_enriched"]         = _prev_enriched
-            st.session_state["uc_playlists"]        = _prev_playlists or []
-            st.session_state["uc_active"]           = True
-            st.session_state["uc_enrichment_state"] = "idle"
-
+    cancel_enrichment()
     st.switch_page("pages/0_home.py")
 
 # ---------------------------------------------------------------------------
 # Process one track, then rerun
 # ---------------------------------------------------------------------------
 track = to_enrich[cursor]
-sid   = track["id"]
-
-try:
-    raw_data, status = _fetch(sid)
-except Exception:
-    st.session_state["uc_failed"].append({
-        "name":          track.get("name", ""),
-        "artists":       track.get("artists", ""),
-        "playlist_name": track.get("playlist_name", ""),
-        "id":            track.get("id", ""),
-        "added_at":      track.get("added_at", ""),
-        "popularity":    track.get("popularity", 0),
-        "album":         track.get("album", ""),
-        "release_date":  track.get("release_date", ""),
-        "duration_ms":   track.get("duration_ms", 0),
-    })
-    time.sleep(1)
-    st.session_state["uc_enrichment_cursor"] += 1
-    st.rerun()
-
-if status == "skip":
-    fallback = _fetch_fallback(sid)
-    if fallback is not None:
-        st.session_state["uc_enriched"].append(
-            {**track, **fallback})
-    else:
-        st.session_state["uc_skipped"].append({
-            "name":          track.get("name", ""),
-            "artists":       track.get("artists", ""),
-            "playlist_name": track.get("playlist_name", ""),
-            "id":            track.get("id", ""),
-            "added_at":      track.get("added_at", ""),
-            "popularity":    track.get("popularity", 0),
-            "album":         track.get("album", ""),
-            "release_date":  track.get("release_date", ""),
-            "duration_ms":   track.get("duration_ms", 0),
-        })
-elif status == "fail" or raw_data is None:
-    st.session_state["uc_failed"].append({
-        "name":          track.get("name", ""),
-        "artists":       track.get("artists", ""),
-        "playlist_name": track.get("playlist_name", ""),
-        "id":            track.get("id", ""),
-        "added_at":      track.get("added_at", ""),
-        "popularity":    track.get("popularity", 0),
-        "album":         track.get("album", ""),
-        "release_date":  track.get("release_date", ""),
-        "duration_ms":   track.get("duration_ms", 0),
-    })
-else:
-    mapped = _map_fields(sid, raw_data)
-    if mapped is None:
-        st.session_state["uc_failed"].append({
-            "name":          track.get("name", ""),
-            "artists":       track.get("artists", ""),
-            "playlist_name": track.get("playlist_name", ""),
-            "id":            track.get("id", ""),
-            "added_at":      track.get("added_at", ""),
-            "popularity":    track.get("popularity", 0),
-            "album":         track.get("album", ""),
-            "release_date":  track.get("release_date", ""),
-            "duration_ms":   track.get("duration_ms", 0),
-        })
-    else:
-        st.session_state["uc_enriched"].append(
-            {**track, **{k: v for k, v in mapped.items() if k != "spotify_id"}})
+process_track(track)
 
 time.sleep(1)
 st.session_state["uc_enrichment_cursor"] += 1

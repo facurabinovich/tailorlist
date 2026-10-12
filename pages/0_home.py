@@ -1,7 +1,5 @@
 import html
 import logging
-import math
-import os
 import requests
 import pandas as pd
 import streamlit as st
@@ -17,10 +15,19 @@ with open("assets/spotify-full-logo/Full_Logo_Green_RGB.svg", "rb") as f:
     img_b64 = base64.b64encode(f.read()).decode()
 
 from ui.nav import inject_sidebar_nav
+from app_state.home import (
+    adopt_pending_sid, append_playlist, init_defaults, load_dev_collection,
+    persist_after_adding_playlist, queue_playlists_from_url, remove_playlist,
+    reset_keys, restore_from_sid, save_dev_collection, track_site_visit,
+)
+from core.home import (
+    add_playlist_error, active_playlist_names, confirm_estimate, duplicate_note,
+    enrich_tip_level, missing_features_note, playlist_count, purge_unenriched_playlists,
+    summarize_collection,
+)
 
 # Pick up sid set by _Enrich.py on completion
-if st.session_state.get("_pending_sid"):
-    st.query_params["sid"] = st.session_state.pop("_pending_sid")
+adopt_pending_sid()
 
 # ── YC session restore ────────────────────────────────────────────────────────
 # Check session state first (survives page navigation within same session)
@@ -28,114 +35,28 @@ if st.session_state.get("_pending_sid"):
 # resolve_sid(): session_state → ?sid= → cookie, malformed values rejected.
 # The cookie fallback is what makes a bookmarked or typed URL recover a
 # collection — the component iframe cannot put a stored sid back in the URL.
-from app_state.session import resolve_sid, forget_uc_session, mark_uc_session_unavailable
+from app_state.session import resolve_sid
 _sid = resolve_sid()
-
-if (_sid
-        and not st.session_state.get("uc_active")
-        and not st.session_state.get("_dev_loaded")
-        and not st.session_state.get("_adding_playlist")):
-    from db.queries import load_uc_session, touch_uc_session
-    _session = load_uc_session(_sid)
-    if _session:
-        st.session_state["uc_enriched"]         = _session["enriched"]
-        st.session_state["uc_skipped"]          = _session["skipped"]
-        st.session_state["uc_failed"]           = _session["failed"]
-        st.session_state["uc_playlists"]        = _session["playlists"]
-        st.session_state["uc_active"]           = True
-        st.session_state["uc_enrichment_state"] = "idle"
-        st.session_state["uc_session_id"]       = _sid
-        if not is_dev_mode():
-            touch_uc_session(_sid)
-    else:
-        st.session_state["_session_expired"] = True
-        st.query_params.pop("sid", None)
-        # Stop retrying this session. The cookie is deliberately left alone:
-        # load_uc_session() also returns None when the DB is unreachable, and
-        # deleting it then would lose the collection for good.
-        mark_uc_session_unavailable()
+restore_from_sid(_sid)
 
 # ── DEV MODE — must run before inject_sidebar_nav() ─────────────────────────
 import config  # noqa: F401  (loads .env)
-import json
-if (is_dev_mode()
-        and not st.session_state.get("uc_active")
-        and not st.session_state.get("_dev_loaded")
-        and not st.session_state.get("uc_playlists")):
-    _dev_path = "data/dev_collection.json"
-    if os.path.exists(_dev_path):
-        with open(_dev_path, "r") as f:
-            _dev_data = json.load(f)
-        st.session_state["uc_enriched"]         = _dev_data["enriched"]
-        st.session_state["uc_skipped"]          = _dev_data["skipped"]
-        st.session_state["uc_failed"]           = _dev_data.get("failed", [])
-        st.session_state["uc_playlists"]        = _dev_data["playlists"]
-        st.session_state["uc_active"]           = True
-        st.session_state["uc_enrichment_state"] = "idle"
-        st.session_state["_dev_loaded"]         = True
+load_dev_collection()
 
 # (?mode= is ignored for navigation; the app only has Your Collection. It is
 # still read below as the analytics referrer.)
 inject_sidebar_nav("Home")
 
 # ── site_visit event — once per session ───────────────────────────────────────
-if not is_dev_mode():
-    _vid = st.session_state.get("visitor_id")
-    if _vid and not st.session_state.get(f"_tracked_site_visit_{_vid}"):
-        try:
-            from db.queries import track_event as _track_event
-            _mode_param = st.query_params.get("mode", "")
-            _track_event(
-                event      = "site_visit",
-                page       = "Home",
-                session_id = st.session_state.get("uc_session_id", "anonymous"),
-                visitor_id = _vid,
-                properties = {"referrer": _mode_param} if _mode_param else None,
-            )
-        except Exception:
-            pass
-        st.session_state[f"_tracked_site_visit_{_vid}"] = True
+track_site_visit()
 
 import spotipy
 from spotify.client import extract_playlist_id, get_spotify_client
 
-for _k, _v in [
-    ("uc_playlists",         []),
-    ("uc_enriched",          []),
-    ("uc_failed",            []),
-    ("uc_skipped",           []),
-    ("uc_active",            False),
-    ("uc_enrichment_state",  "idle"),
-    ("uc_url_counter",       0),
-]:
-    if _k not in st.session_state:
-        st.session_state[_k] = _v
-
-if st.session_state["uc_enrichment_state"] not in ("idle", "confirm", "complete"):
-    st.session_state["uc_enrichment_state"] = "idle"
-
-_RESET_KEYS = (
-    "uc_playlists",
-    "uc_enriched",
-    "uc_failed",
-    "uc_skipped",
-    "uc_active",
-    "uc_enrichment_state",
-    "uc_enrichment_cursor",
-    "uc_all_tracks",
-    "_dev_loaded",
-    "uc_session_id",
-    "_pending_sid",
-    "_adding_playlist",
-)
+init_defaults()
 
 def _do_reset():
-    for k in _RESET_KEYS:
-        st.session_state.pop(k, None)
-    st.query_params.clear()
-    # Stop the sid cookie from pulling this visitor back into the
-    # collection they just reset (inject_sidebar_nav deletes it)
-    forget_uc_session()
+    reset_keys()
     # Clear localStorage sid
     import streamlit.components.v1 as _components
     _components.html("""
@@ -148,31 +69,14 @@ document.cookie = 'tailorlist_sid=;path=/;max-age=0';
 if st.session_state.pop("_navigate_to_enrich", False):
     st.switch_page("pages/_Enrich.py")
 
-param_raw = st.query_params.get("playlists", "")
-param_ids = [p.strip() for p in param_raw.split(",") if p.strip()]
-if param_ids:
-    existing_ids = {p["id"] for p in st.session_state["uc_playlists"]}
-    missing = [pid for pid in param_ids if pid not in existing_ids]
-    if missing:
-        try:
-            sp_r = get_spotify_client()
-            for pid in missing:
-                try:
-                    info = sp_r.playlist(pid, fields="name,tracks.total,followers")
-                    st.session_state["uc_playlists"].append({
-                        "id":          pid,
-                        "name":        info["name"],
-                        "track_count": info["tracks"]["total"],
-                        "followers":   info.get("followers", {}).get("total", 0),
-                    })
-                except Exception:
-                    pass
-        except requests.exceptions.ConnectionError:
-            st.error("🌐 Couldn't reach Spotify right now. Check your connection and try again.")
-        except requests.exceptions.Timeout:
-            st.error("⏱️ Spotify took too long to respond. Try again in a moment.")
-        except RuntimeError:
-            pass
+try:
+    queue_playlists_from_url(get_spotify_client)
+except requests.exceptions.ConnectionError:
+    st.error("🌐 Couldn't reach Spotify right now. Check your connection and try again.")
+except requests.exceptions.Timeout:
+    st.error("⏱️ Spotify took too long to respond. Try again in a moment.")
+except RuntimeError:
+    pass
 
 # ── Expired session banner ───────────────────────────────────────────────
 if st.session_state.pop("_session_expired", False):
@@ -229,30 +133,25 @@ if _state == "complete":
     n_enriched  = len(st.session_state["uc_enriched"])
     n_skipped   = len(st.session_state.get("uc_skipped", []))
     n_failed    = len(st.session_state.get("uc_failed", []))
-    _active_pl_names = {
-        t.get("playlist_name")
-        for t in (st.session_state["uc_enriched"]
-                  + st.session_state.get("uc_skipped", [])
-                  + st.session_state.get("uc_failed", []))
-        if t.get("playlist_name")
-    }
+    _active_pl_names = active_playlist_names(
+        st.session_state["uc_enriched"],
+        st.session_state.get("uc_skipped", []),
+        st.session_state.get("uc_failed", []))
     # Purge playlists that were queued but never enriched so all downstream
     # checks (duplicate guard, card display, counts) stay accurate.
-    if _active_pl_names:
-        st.session_state["uc_playlists"] = [
-            p for p in st.session_state["uc_playlists"]
-            if p["name"] in _active_pl_names
-        ]
-    n_playlists = len(_active_pl_names) if _active_pl_names else len(st.session_state["uc_playlists"])
+    st.session_state["uc_playlists"] = purge_unenriched_playlists(
+        st.session_state["uc_playlists"], _active_pl_names)
+    n_playlists = playlist_count(_active_pl_names, st.session_state["uc_playlists"])
 
     total        = n_enriched + n_skipped + n_failed
-    missing_note = f" · {n_skipped + n_failed} without audio features" if (n_skipped + n_failed) else ""
+    missing_note = missing_features_note(n_skipped, n_failed)
     st.success(f"✅ Your collection is live — {total:,} tracks across {n_playlists} playlist(s){missing_note}.")
 
     _n_enriched = len(st.session_state.get("uc_enriched", []))
     _n_playlists = n_playlists
 
-    if _n_enriched < 100:
+    _tip_level = enrich_tip_level(_n_enriched)
+    if _tip_level == "strong":
         st.markdown(
             "<div style='background:#1a1a1a;border:1px solid #F5A623;border-radius:10px;"
             "padding:12px 18px;margin-top:12px;'>"
@@ -266,7 +165,7 @@ if _state == "complete":
             "</div>",
             unsafe_allow_html=True,
         )
-    elif _n_enriched < 200:
+    elif _tip_level == "mild":
         st.markdown(
             "<div style='background:#1a1a1a;border:1px solid #333;border-radius:10px;"
             "padding:12px 18px;margin-top:12px;'>"
@@ -321,14 +220,7 @@ if _state == "complete":
         else:
             try:
                 info = get_spotify_client().playlist(pid, fields="name,tracks.total,followers")
-                st.session_state["uc_playlists"].append({
-                    "id":          pid,
-                    "name":        info["name"],
-                    "track_count": info["tracks"]["total"],
-                    "followers":   info.get("followers", {}).get("total", 0),
-                })
-                st.query_params["playlists"] = ",".join(
-                    p["id"] for p in st.session_state["uc_playlists"])
+                append_playlist(pid, info)
                 st.session_state["_adding_playlist"] = True
                 st.session_state["uc_active"] = False
                 st.session_state["uc_enrichment_state"] = "idle"
@@ -339,10 +231,7 @@ if _state == "complete":
                 st.error("⏱️ Spotify took too long to respond. Try again in a moment.")
             except spotipy.SpotifyException as e:
                 _log.warning("Spotify error adding playlist: %s", e)
-                st.session_state["_url_add_error_complete"] = (
-                    "❌ Playlist not found. Spotify editorial playlists are not accessible — "
-                    "copy their tracks into your own playlist first."
-                    if e.http_status == 404 else "❌ Could not load playlist. Please try again.")
+                st.session_state["_url_add_error_complete"] = add_playlist_error(e.http_status)
                 st.session_state["uc_url_counter"] += 1
                 st.rerun()
             except RuntimeError as e:
@@ -364,21 +253,7 @@ if _state == "complete":
         with col_btn:
             st.markdown("<div style='margin-top:16px;'>", unsafe_allow_html=True)
             if st.button("✕", key=f"uc_rm_complete_{pl['id']}", type="secondary"):
-                st.session_state["uc_playlists"] = [
-                    p for p in st.session_state["uc_playlists"] if p["id"] != pl["id"]]
-                remaining = [p["id"] for p in st.session_state["uc_playlists"]]
-                st.query_params["playlists"] = ",".join(remaining) if remaining else ""
-                if not remaining:
-                    st.query_params.clear()
-                    for k in ("uc_enriched", "uc_failed", "uc_skipped",
-                              "uc_active", "uc_enrichment_state",
-                              "uc_enrichment_cursor", "uc_all_tracks",
-                              "uc_session_id"):
-                        st.session_state.pop(k, None)
-                    forget_uc_session()   # don't restore it from the cookie
-                else:
-                    st.session_state["uc_active"] = False
-                    st.session_state["uc_enrichment_state"] = "idle"
+                remove_playlist(pl["id"], deactivate_if_remaining=True)
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -393,12 +268,10 @@ if _state == "complete":
 # =========================================================================
 elif _state == "confirm":
 
-    total_t  = sum(p["track_count"] for p in st.session_state["uc_playlists"])
-    n_pl     = len(st.session_state["uc_playlists"])
-    already_ids = {t.get("id") or t.get("track_id") for t in st.session_state["uc_enriched"]}
-    new_tracks = total_t - len(already_ids)
-    new_tracks = max(new_tracks, 1)
-    est_min  = math.ceil(new_tracks / 26)
+    _est     = confirm_estimate(st.session_state["uc_playlists"], st.session_state["uc_enriched"])
+    total_t  = _est.total_tracks
+    n_pl     = _est.n_playlists
+    est_min  = _est.est_min
 
     st.markdown("#### Ready to enrich?")
 
@@ -455,51 +328,29 @@ else:
 
     # ── Active collection — enrichment done, show summary and nav ────────
     if st.session_state.get("uc_active") and st.session_state.get("uc_enriched"):
-        n_enriched  = len(st.session_state["uc_enriched"])
-        n_skipped   = len(st.session_state.get("uc_skipped", []))
-        n_failed    = len(st.session_state.get("uc_failed", []))
-        _active_pl_names = {
-            t.get("playlist_name")
-            for t in (st.session_state["uc_enriched"]
-                      + st.session_state.get("uc_skipped", [])
-                      + st.session_state.get("uc_failed", []))
-            if t.get("playlist_name")
-        }
+        _active_pl_names = active_playlist_names(
+            st.session_state["uc_enriched"],
+            st.session_state.get("uc_skipped", []),
+            st.session_state.get("uc_failed", []))
         # Remove playlists that were queued but never enriched (e.g. cancelled
         # before any tracks were processed) so duplicate checks stay accurate.
-        if _active_pl_names:
-            st.session_state["uc_playlists"] = [
-                p for p in st.session_state["uc_playlists"]
-                if p["name"] in _active_pl_names
-            ]
-        n_playlists = len(_active_pl_names) if _active_pl_names else len(st.session_state["uc_playlists"])
+        st.session_state["uc_playlists"] = purge_unenriched_playlists(
+            st.session_state["uc_playlists"], _active_pl_names)
+        n_playlists = playlist_count(_active_pl_names, st.session_state["uc_playlists"])
 
-        # Unique counts via set operations on Spotify track IDs
-        _enriched_ids = {t["id"] for t in st.session_state["uc_enriched"] if t.get("id")}
-        _unenriched_all = st.session_state.get("uc_skipped", []) + st.session_state.get("uc_failed", [])
-        _unenriched_unique_ids = {t["id"] for t in _unenriched_all if t.get("id")} - _enriched_ids
-        n_unique_with_af    = len(_enriched_ids)
-        n_unique_without_af = len(_unenriched_unique_ids)
-        total = n_unique_with_af + n_unique_without_af
-
-        # Dupe accounting
-        _uc_playlists_meta  = st.session_state.get("uc_playlists", [])
-        _spotify_total_home = sum(pl.get("track_count", 0) for pl in _uc_playlists_meta)
-        _n_raw              = n_enriched + n_skipped + n_failed
-        _cross_dupes        = max(0, _n_raw - total)
-        _intra_dupes        = max(0, _spotify_total_home - _n_raw)
-        _total_dupes        = _cross_dupes + _intra_dupes
-        _dupe_parts = []
-        if _cross_dupes > 0:
-            _dupe_parts.append(f"{_cross_dupes} across playlists")
-        if _intra_dupes > 0:
-            _dupe_parts.append(f"{_intra_dupes} within same playlist")
+        # Unique counts via set operations on Spotify track IDs, and dupe accounting
+        _sum = summarize_collection(
+            st.session_state["uc_enriched"],
+            st.session_state.get("uc_skipped", []),
+            st.session_state.get("uc_failed", []),
+            st.session_state.get("uc_playlists", []))
+        n_unique_with_af    = _sum.n_unique_with_af
+        n_unique_without_af = _sum.n_unique_without_af
+        total               = _sum.total
+        _dupe_text          = duplicate_note(_sum.cross_dupes, _sum.intra_dupes)
         _dupe_note_home = (
-            f' · <span style="color:#888;">'
-            + f"{_total_dupes} duplicate(s) not counted"
-            + (f" ({', '.join(_dupe_parts)})" if _dupe_parts else "")
-            + "</span>"
-        ) if _total_dupes > 0 else ""
+            f' · <span style="color:#888;">' + _dupe_text + "</span>"
+        ) if _dupe_text else ""
 
         st.markdown(f"""
             <div style="background:#1a2e1a;border:1px solid #1DB954;border-radius:12px;
@@ -563,30 +414,12 @@ else:
                 else:
                     try:
                         info = get_spotify_client().playlist(pid, fields="name,tracks.total,followers")
-                        st.session_state["uc_playlists"].append({
-                            "id":          pid,
-                            "name":        info["name"],
-                            "track_count": info["tracks"]["total"],
-                            "followers":   info.get("followers", {}).get("total", 0),
-                        })
-                        st.query_params["playlists"] = ",".join(
-                            p["id"] for p in st.session_state["uc_playlists"])
+                        append_playlist(pid, info)
                         st.session_state["_adding_playlist"] = True  # prevent restore
                         st.session_state["uc_active"] = False
                         st.session_state["uc_enrichment_state"] = "idle"
                         # Update persisted session with new playlist list
-                        if st.session_state.get("uc_session_id") and not is_dev_mode():
-                            try:
-                                from db.queries import save_uc_session
-                                save_uc_session(
-                                    session_id = st.session_state["uc_session_id"],
-                                    enriched   = st.session_state.get("uc_enriched", []),
-                                    skipped    = st.session_state.get("uc_skipped", []),
-                                    failed     = st.session_state.get("uc_failed", []),
-                                    playlists  = st.session_state.get("uc_playlists", []),
-                                )
-                            except Exception:
-                                pass
+                        persist_after_adding_playlist()
                         st.rerun()
                     except requests.exceptions.ConnectionError:
                         st.error("🌐 Couldn't reach Spotify right now. Check your connection and try again.")
@@ -594,10 +427,7 @@ else:
                         st.error("⏱️ Spotify took too long to respond. Try again in a moment.")
                     except spotipy.SpotifyException as e:
                         _log.warning("Spotify error adding playlist: %s", e)
-                        st.session_state["_url_add_error_active"] = (
-                            "❌ Playlist not found. Spotify editorial playlists are not accessible — "
-                            "copy their tracks into your own playlist first."
-                            if e.http_status == 404 else "❌ Could not load playlist. Please try again.")
+                        st.session_state["_url_add_error_active"] = add_playlist_error(e.http_status)
                         st.session_state["uc_url_counter"] += 1
                         st.rerun()
                     except RuntimeError as e:
@@ -607,18 +437,10 @@ else:
                         st.rerun()
 
         # DEV — remove before deploy
-        import json, os
         if is_dev_mode():
             if st.button("💾 Save as dev collection", type="secondary", key="dev_save"):
-                data = {
-                    "enriched":  st.session_state["uc_enriched"],
-                    "skipped":   st.session_state.get("uc_skipped", []),
-                    "failed":    st.session_state.get("uc_failed", []),
-                    "playlists": st.session_state["uc_playlists"],
-                }
-                with open("data/dev_collection.json", "w") as f:
-                    json.dump(data, f, indent=2, default=str)
-                st.success(f"✅ Saved {len(data['enriched'])} enriched tracks to data/dev_collection.json")
+                _n_saved = save_dev_collection()
+                st.success(f"✅ Saved {_n_saved} enriched tracks to data/dev_collection.json")
         st.markdown("---")
         if st.button("🗑️ Delete my session data", type="secondary",
                      key="uc_delete_session"):
@@ -672,14 +494,7 @@ localStorage.removeItem('tailorlist_sid');
             else:
                 try:
                     info = get_spotify_client().playlist(pid, fields="name,tracks.total,followers")
-                    st.session_state["uc_playlists"].append({
-                        "id":          pid,
-                        "name":        info["name"],
-                        "track_count": info["tracks"]["total"],
-                        "followers":   info.get("followers", {}).get("total", 0),
-                    })
-                    st.query_params["playlists"] = ",".join(
-                        p["id"] for p in st.session_state["uc_playlists"])
+                    append_playlist(pid, info)
                     st.session_state["uc_url_counter"] += 1
                     st.rerun()
                 except requests.exceptions.ConnectionError:
@@ -688,10 +503,7 @@ localStorage.removeItem('tailorlist_sid');
                     st.error("⏱️ Spotify took too long to respond. Try again in a moment.")
                 except spotipy.SpotifyException as e:
                     _log.warning("Spotify error adding playlist: %s", e)
-                    st.session_state["_url_add_error"] = (
-                        "❌ Playlist not found. Spotify editorial playlists are not accessible — "
-                        "copy their tracks into your own playlist first."
-                        if e.http_status == 404 else "❌ Could not load playlist. Please try again.")
+                    st.session_state["_url_add_error"] = add_playlist_error(e.http_status)
                     st.session_state["uc_url_counter"] += 1
                     st.rerun()
                 except RuntimeError as e:
@@ -713,18 +525,7 @@ localStorage.removeItem('tailorlist_sid');
             with col_btn:
                 st.markdown("<div style='margin-top:16px;'>", unsafe_allow_html=True)
                 if st.button("✕", key=f"uc_rm_{pl['id']}", type="secondary"):
-                    st.session_state["uc_playlists"] = [
-                        p for p in st.session_state["uc_playlists"] if p["id"] != pl["id"]]
-                    remaining = [p["id"] for p in st.session_state["uc_playlists"]]
-                    st.query_params["playlists"] = ",".join(remaining) if remaining else ""
-                    if not remaining:
-                        st.query_params.clear()
-                        for k in ("uc_enriched", "uc_failed", "uc_skipped",
-                                  "uc_active", "uc_enrichment_state",
-                                  "uc_enrichment_cursor", "uc_all_tracks",
-                                  "uc_session_id"):
-                            st.session_state.pop(k, None)
-                        forget_uc_session()   # don't restore it from the cookie
+                    remove_playlist(pl["id"], deactivate_if_remaining=False)
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 

@@ -69,3 +69,28 @@ def load_uc_session(session_id: str):
     """Load a persisted YC session (thin wrapper so ui/ never imports db/)."""
     from db.queries import load_uc_session as _load
     return _load(session_id)
+
+
+def needs_restore(sid: str) -> bool:
+    """True when a persisted YC session should be loaded for ``sid``.
+
+    Needs a sid and an empty page state: no active collection, no dev-collection load, and
+    not in the middle of adding a playlist (which deliberately deactivates the collection).
+    """
+    import streamlit as st
+    return bool(sid
+                and not st.session_state.get("uc_active")
+                and not st.session_state.get("_dev_loaded")
+                and not st.session_state.get("_adding_playlist"))
+
+
+def apply_restored_session(session: dict, sid: str) -> None:
+    """Put a loaded YC session (as returned by load_uc_session) into session state."""
+    import streamlit as st
+    st.session_state["uc_enriched"]         = session["enriched"]
+    st.session_state["uc_skipped"]          = session["skipped"]
+    st.session_state["uc_failed"]           = session["failed"]
+    st.session_state["uc_playlists"]        = session["playlists"]
+    st.session_state["uc_active"]           = True
+    st.session_state["uc_enrichment_state"] = "idle"
+    st.session_state["uc_session_id"]       = sid
