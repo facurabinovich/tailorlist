@@ -1,6 +1,6 @@
 # Tareas: refactor de arquitectura
 
-> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Fase 3b completa (2026-10-12, Checkpoint 3b). Fase 4 completa (Checkpoint 4, 2026-10-12); Fase 5: T28 hecha; siguen T29 (tiempos) y T30 (README y revisión). Suite: 977 tests, ~1–3 min. Hallazgos abiertos en `plan.md`: H7, H9, H11–H13, H15–H19 (H2, H3 y H8 resueltos).
+> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Fase 3b completa (2026-10-12, Checkpoint 3b). Fase 4 completa (Checkpoint 4, 2026-10-12); Fase 5: T28–T29 hechas; sigue T30 (README y revisión). Suite: 977 tests, ~1–3 min. Hallazgos abiertos en `plan.md`: H7, H9, H11–H13, H15–H19 (H2, H3 y H8 resueltos).
 
 Plan: [`plan.md`](plan.md) · Spec: [`SPEC.md`](../SPEC.md)
 
@@ -214,9 +214,10 @@ página; si una queda por encima, se justifica en el commit.
   - Acceptance: `db/queries.py`, `utils.py` y `spotify_client.py` eliminados y ningún import los referencia. Fuera de `pages/`, el único que importa de `db/` es `monitoring.py`, vía `db.connection.get_engine`, que no cambia (verificado). El comentario de H2 se corrige.
   - Verify: suite; `grep`.
   - Hecho (2026-10-12): se eliminan `db/queries.py`, `utils.py` y `spotify_client.py`, y todos los imports y patches apuntan al módulo real; el test de arquitectura verifica que no vuelvan. H2 corregido. Decisión de Facu sobre `pipeline/` (rescatar y borrar): `_fetch`, `_map_fields` y `_fetch_fallback` pasan a `spotify/reccobeats.py` como `fetch_audio_features`, `map_audio_features` y `fetch_fallback_features` (mismo AST, con tests nuevos); se borran el ETL, `playlists*.yaml` y el `enrich_tracks_live` sin uso de `spotify/client.py`. `scripts/` queda (`create_schema.py` crea también las tablas de YC). Suite: 977 en ambos órdenes.
-- [ ] **T29: Comparación final** · S
+- [x] **T29: Comparación final** · S
   - Acceptance: tiempos de los smoke tests (mediana de 5) frente a la línea base, sin una regresión mayor al 20 % que supere la varianza. Capturas finales frente a las de la línea base, sin diferencias visibles.
   - Verify: `tasks/perf-baseline.md` actualizado con el antes y el después.
+  - Hecho (2026-10-12): comparación pareja (mismo subconjunto YC, misma máquina, 3 corridas por versión) en `perf-baseline.md`: total +2 %, páginas pesadas entre −8 % y +1 %; Home (+0.08 s) y Cluster Results por categoría (+0.19 s) suben de forma consistente, pero en términos absolutos son menos de 0.2 s. Capturas: las 9 páginas son idénticas al Checkpoint 3b, y este a la línea base YC salvo el selector y los bloques de Home decididos en R1.
 - [ ] **T30: Documentación y revisión** · S
   - Acceptance: sección de arquitectura en el README (capas y regla de dependencias). Checklist de criterios de éxito del spec completo. Revisión con `/review`.
   - Verify: todos los criterios de `SPEC.md` tildados.

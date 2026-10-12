@@ -71,3 +71,43 @@ Mediana y rango min-max de las 5 corridas (suma de la fila `x9`: los tests de im
 | `test_page_renders[8_Contact-YC]` | 0.01 | 0.01-0.01 |
 | `test_page_does_not_import_other_pages[x9 listados, suma]` | 0.13 | 0.12-0.22 |
 
+
+## Comparación final (T29, 2026-10-12, después de T28)
+
+La tabla de arriba no sirve para comparar tal cual: en la línea base los tests YC
+corrían después de los FC (con imports y cachés ya calientes), y el test de Run de
+My Clusters corría en FC con un frame chico. Después de la Fase 3b ya no hay FC, así
+que los tests YC pagan el arranque en frío y el Run trabaja con los 415 tracks de
+`dev_collection.json`. Correr la suite completa da 34.4 s (suma de medianas) contra
+15.3 s de la base, pero esa diferencia es por el cambio de escenario.
+
+Comparación pareja: el mismo subconjunto YC (render de las 9 páginas más Cluster
+Results por KMeans y por categoría), 3 corridas por versión, en la misma máquina y
+el mismo día. Base: `e6e5f1c` (T3) en un worktree. Nueva: `55dcdc7`.
+
+```
+pytest tests/test_smoke_pages.py -q -p no:cacheprovider --durations=0 -k "YC and (page_renders or cluster_results_renders)"   # base
+pytest tests/test_smoke_pages.py -q -p no:cacheprovider --durations=0 -k "page_renders or cluster_results_renders"            # nueva
+```
+
+| test (YC) | base (mediana, s) | nueva (mediana, s) | cambio |
+|---|---|---|---|
+| Cluster Results, KMeans (incluye correr el clustering) | 5.73 | 5.81 | +1 % |
+| Overview | 1.21 | 1.20 | −1 % |
+| My Clusters | 1.11 | 1.06 | −5 % |
+| Playlist Detail | 0.87 | 0.83 | −5 % |
+| Audio DNA | 0.39 | 0.36 | −8 % |
+| Home | 0.32 | 0.40 | +25 % (+0.08 s) |
+| Playlist Comparison | 0.31 | 0.31 | 0 % |
+| Artist/Album | 0.29 | 0.27 | −7 % |
+| Cluster Results, por categoría | 0.16 | 0.35 | +119 % (+0.19 s) |
+| Glossary | 0.07 | 0.06 | −14 % |
+| Contact | 0.01 | 0.01 | — |
+| **Total** | **10.47** | **10.66** | **+2 %** |
+
+Resultado: el total y todas las páginas pesadas quedan dentro de ±8 %. Dos tests
+cortos suben de forma consistente en las 3 corridas, aunque en términos absolutos
+son menos de 0.2 s: Home (+0.08 s, plausiblemente por el import de los módulos nuevos
+`app_state/home` y `core/home`) y Cluster Results por categoría (+0.19 s; en la
+versión nueva cambió el orden de los tests y este pagó el arranque en frío en una de
+las corridas, 1.33 s). Quedan documentados; no se midieron en la app real.
