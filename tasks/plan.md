@@ -123,6 +123,17 @@ hacer la revisión final.
   Relevante para las tools si reciben colecciones sin popularidad.
 - **H13 (T19):** con `popularity_raw` presente pero toda NaN, el KPI de popularidad
   promedio muestra "nan". Se preservó.
+- **H14 (T20):** los espejos de `tests/test_playlist_detail.py` se habían desviado:
+  `compute_duplicates` agrupaba por nombre+artista (el page detecta por Spotify ID,
+  así que el caso del test era una "versión distinta", no un duplicado exacto) y
+  `derive_af_avg_yc` deduplicaba antes de promediar (el page promedia todas las filas).
+  Se corrigió el fixture con comentario y se agregó un test del comportamiento real.
+- **H15 (T20):** rarezas preservadas en `core/playlist_detail.py`: `track_highlights`
+  falla si una columna existe pero es toda NaN; `track_table` falla si algún
+  `popularity_raw` es NaN; un `added_at` NaT da un mes "NaT"; con todas las
+  distancias iguales, `with_similarity_pct` deja todo vacío. Top genres de Detail
+  cuenta tags por fila y el de Overview tracks únicos por substring (definiciones
+  distintas). Relevante para las tools.
 - **H10:** los tests espejo de My Clusters (`_track_matches_families` y
   `_preview_filter`) se habían desviado del código de producción. Probaban el
   comportamiento anterior al cambio deliberado del 2026-05-20 ("los tracks sin

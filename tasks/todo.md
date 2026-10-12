@@ -1,6 +1,6 @@
 # Tareas: refactor de arquitectura
 
-> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Fase 3b completa (2026-10-12, Checkpoint 3b). Fase 4: T19 hecha; sigue **T20 Playlist Detail**. Suite: 660 tests, ~1–3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H9, H11–H13 (H8 resuelto en R2).
+> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Fase 3b completa (2026-10-12, Checkpoint 3b). Fase 4: T19–T20 hechas; sigue **T21 Artist/Album**. Suite: 738 tests, ~1–3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H9, H11–H13, H15 (H8 resuelto en R2).
 
 Plan: [`plan.md`](plan.md) · Spec: [`SPEC.md`](../SPEC.md)
 
@@ -184,7 +184,8 @@ página; si una queda por encima, se justifica en el commit.
 
 - [x] **T19: Overview** · M
   - Hecho (2026-10-12): lógica a `core/overview.py` (KPIs, perfil de escucha con `current_year` como parámetro, rankings, distribuciones, timeline y drill-downs; funciones puras con dataclasses). La página pasa de 761 a 591 líneas: quedan ~150 de HTML, ~170 de 5 figuras plotly y ~120 de secciones de clic, que dependen de muchas globales. `tests/test_overview.py` importa el código real (su copia del timeline había divergido, H-T19-1) y se suma `tests/test_core_overview.py` (40 tests). Equivalencia vieja/nueva en 119 valores sobre `dev_collection.json`. App real: las 9 páginas idénticas al Checkpoint 3b. Hallazgos H11–H13. Suite: 660 en ambos órdenes.
-- [ ] **T20: Playlist Detail** · M
+- [x] **T20: Playlist Detail** · M
+  - Hecho (2026-10-12): lógica a `core/playlist_detail.py`, y duplicados exactos y versiones a `core/duplicates.py` (con `include_playlists` para que T22 lo reuse; misma definición de "versión" que Comparison, y en duplicados exactos difieren alcance, columnas y orden). Página: 897 → 749 líneas (~400 son figuras plotly y tarjetas HTML propias de la página). Tests espejo reemplazados por imports (H14), más `test_core_playlist_detail.py` (35) y `test_core_duplicates.py` (15). Equivalencia: 37 combinaciones de playlist/variante × 20 salidas. App real: las 6 playlists con texto idéntico al de HEAD (`qa-tools/detail_all.py`). Suite: 738 en ambos órdenes.
 - [ ] **T21: Artist/Album** (más `_album_goto`) · M
 - [ ] **T22: Playlist Comparison** (lógica de duplicados exactos y versiones distintas a `core/`) · M
 - [ ] **T23: Audio DNA** (layout y colores a `ui/charts.py`) · M

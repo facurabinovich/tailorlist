@@ -2,10 +2,10 @@ import html
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
-import pandas as pd
-import numpy as np
 from app_state.collection import get_all_tracks
 from config import CLUSTER_FEATURES
+from core import duplicates as dup
+from core import playlist_detail as pd_core
 from core.formatting import fmt_duration
 
 from ui.theme import inject_global_css
@@ -59,19 +59,8 @@ def highlight_card(icon: str, label: str, track: str, artist: str, badge: str) -
 df = get_all_tracks()
 
 # Derive af_avg from df (audio features come from Spotify enrichment)
-_af_cols = [c for c in ["energy", "acousticness", "valence", "danceability",
-                         "speechiness", "instrumentalness", "liveness", "tempo"]
-            if c in df.columns]
-af_avg = (
-    df.groupby("playlist_name")[_af_cols]
-    .mean()
-    .reset_index()
-) if _af_cols else pd.DataFrame()
-meta = df.groupby("playlist_name").size().reset_index(name="total_tracks")
-_uc_playlists = st.session_state.get("uc_playlists", [])
-meta["followers"] = meta["playlist_name"].apply(
-    lambda name: next((p.get("followers", 0) for p in _uc_playlists if p["name"] == name), 0)
-)
+af_avg = pd_core.playlist_audio_averages(df)
+meta = pd_core.playlist_meta(df, st.session_state.get("uc_playlists", []))
 
 # ---------------------------------------------------------------------------
 # Header
@@ -104,40 +93,27 @@ if st.session_state.get("uc_active"):
 playlists = sorted(df["playlist_name"].unique().tolist())
 selected  = st.selectbox("Choose a playlist", playlists, label_visibility="collapsed")
 
-pl_df   = df[df["playlist_name"] == selected].copy()
-# Normalize duration to minutes (YC delivers milliseconds)
-if "duration_raw" in pl_df.columns:
-    pl_df["duration_raw"] = pl_df["duration_raw"] / 60000
+# Playlist rows, duration normalized to minutes (YC delivers milliseconds)
+pl_df   = pd_core.playlist_tracks(df, selected)
 pl_meta = meta[meta["playlist_name"] == selected].iloc[0]
 
 # Ensure speechiness_log is present for the radar chart (log1p transform used by CLUSTER_FEATURES)
-if not af_avg.empty and "speechiness" in af_avg.columns and "speechiness_log" not in af_avg.columns:
-    af_avg = af_avg.copy()
-    af_avg["speechiness_log"] = np.log1p(af_avg["speechiness"])
+af_avg = pd_core.add_speechiness_log(af_avg)
 
-# af_avg-derived per-playlist and global audio feature rows
-if not af_avg.empty and selected in af_avg["playlist_name"].values:
-    pl_af     = af_avg[af_avg["playlist_name"] == selected].iloc[0]
-    global_af = af_avg.mean(numeric_only=True)
-else:
-    pl_af     = None
-    global_af = None
+# Per-playlist and global audio feature rows
+audio = pd_core.compare_audio(af_avg, selected)
 
 st.markdown("<hr style='border-color:#333;margin-top:16px;margin-bottom:24px;'>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Section 1 — Header metrics
 # ---------------------------------------------------------------------------
-total_tracks   = len(pl_df)
-unique_artists = pl_df["artist_name"].nunique()
-followers      = int(pl_meta["followers"])
-
-if "added_at" in pl_df.columns:
-    first_added = pd.to_datetime(pl_df["added_at"].min()).strftime("%b %Y")
-    last_added  = pd.to_datetime(pl_df["added_at"].max()).strftime("%b %d, %Y")
-else:
-    first_added = "N/A"
-    last_added  = "N/A"
+kpis = pd_core.header_kpis(pl_df, int(pl_meta["followers"]))
+total_tracks   = kpis.total_tracks
+unique_artists = kpis.unique_artists
+followers      = kpis.followers
+first_added    = kpis.first_added
+last_added     = kpis.last_added
 
 k1, k2, k3, k4, k5 = st.columns(5)
 with k1: st.markdown(kpi_card("🎵", "Tracks", str(total_tracks)), unsafe_allow_html=True)
@@ -159,10 +135,11 @@ st.markdown(
 
 col1, col2, col3 = st.columns(3)
 
+hl = pd_core.track_highlights(pl_df)
+
 with col1:
-    if "duration_raw" in pl_df.columns:
-        longest_row  = pl_df.loc[pl_df["duration_raw"].idxmax()]
-        shortest_row = pl_df.loc[pl_df["duration_raw"].idxmin()]
+    if hl.longest is not None:
+        longest_row, shortest_row = hl.longest, hl.shortest
         st.markdown(
             highlight_card("⏱️", "Longest Track", longest_row["track_name"], longest_row["artist_display"], fmt_duration(longest_row["duration_raw"])) +
             highlight_card("⚡", "Shortest Track", shortest_row["track_name"], shortest_row["artist_display"], fmt_duration(shortest_row["duration_raw"])),
@@ -170,9 +147,8 @@ with col1:
         )
 
 with col2:
-    if "popularity_raw" in pl_df.columns:
-        most_pop_row  = pl_df.loc[pl_df["popularity_raw"].idxmax()]
-        least_pop_row = pl_df.loc[pl_df["popularity_raw"].idxmin()]
+    if hl.most_popular is not None:
+        most_pop_row, least_pop_row = hl.most_popular, hl.least_popular
         st.markdown(
             highlight_card("⭐", "Most Popular", most_pop_row["track_name"], most_pop_row["artist_display"], f"{int(most_pop_row['popularity_raw'])} pts") +
             highlight_card("💀", "Least Popular", least_pop_row["track_name"], least_pop_row["artist_display"], f"{int(least_pop_row['popularity_raw'])} pts"),
@@ -180,16 +156,13 @@ with col2:
         )
 
 with col3:
-    if "release_year" in pl_df.columns:
-        _ry = pl_df["release_year"].dropna()
-        if not _ry.empty:
-            oldest_row = pl_df.loc[_ry.idxmin()]
-            newest_row = pl_df.loc[_ry.idxmax()]
-            st.markdown(
-                highlight_card("📻", "Oldest Track", oldest_row["track_name"], oldest_row["artist_display"], str(int(oldest_row["release_year"]))) +
-                highlight_card("🆕", "Newest Track", newest_row["track_name"], newest_row["artist_display"], str(int(newest_row["release_year"]))),
-                unsafe_allow_html=True,
-            )
+    if hl.oldest is not None:
+        oldest_row, newest_row = hl.oldest, hl.newest
+        st.markdown(
+            highlight_card("📻", "Oldest Track", oldest_row["track_name"], oldest_row["artist_display"], str(int(oldest_row["release_year"]))) +
+            highlight_card("🆕", "Newest Track", newest_row["track_name"], newest_row["artist_display"], str(int(newest_row["release_year"]))),
+            unsafe_allow_html=True,
+        )
 
 st.markdown("<hr style='border-color:#333;margin-top:24px;margin-bottom:24px;'>", unsafe_allow_html=True)
 
@@ -198,11 +171,9 @@ st.markdown("<hr style='border-color:#333;margin-top:24px;margin-bottom:24px;'>"
 # ---------------------------------------------------------------------------
 st.markdown("## Averages")
 
-avg_dur  = pl_df["duration_raw"].mean() if "duration_raw" in pl_df.columns else None
-avg_pop  = pl_df["popularity_raw"].mean() if "popularity_raw" in pl_df.columns else None
-avg_year = pl_df["release_year"].dropna().mean() if "release_year" in pl_df.columns else None
-top_artist       = pl_df["artist_name"].value_counts().index[0]
-top_artist_count = pl_df["artist_name"].value_counts().iloc[0]
+avgs = pd_core.playlist_averages(pl_df)
+avg_dur, avg_pop, avg_year = avgs.avg_duration, avgs.avg_popularity, avgs.avg_release_year
+top_artist, top_artist_count = avgs.top_artist, avgs.top_artist_count
 
 a1, a2, a3, a4 = st.columns(4)
 with a1: st.markdown(kpi_card("⏱️", "Avg Duration",     fmt_duration(avg_dur) if avg_dur is not None else "N/A"), unsafe_allow_html=True)
@@ -220,14 +191,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-top_artists = (
-    pl_df["artist_name"]
-    .value_counts()
-    .head(5)
-    .reset_index()
-)
-top_artists.columns = ["artist", "tracks"]
-top_artists_pct = top_artists["tracks"].sum() / total_tracks * 100
+_top = pd_core.top_artists(pl_df, 5)
+top_artists = _top.table
+top_artists_pct = _top.covered_pct
 max_tracks_artist = top_artists["tracks"].max()
 medals = ["🥇", "🥈", "🥉", "4.", "5."]
 
@@ -274,24 +240,18 @@ st.markdown("<hr style='border-color:#333;margin-top:24px;margin-bottom:24px;'>"
 # Raw per-playlist data with real Spotify IDs (used for duplicate detection).
 # Rebuilt from session state so skipped/failed tracks use their real Spotify IDs, not synthetic ones.
 if st.session_state.get("uc_active"):
-    _pl_all_raw = [
-        t for t in (
-            st.session_state.get("uc_enriched", [])
-            + st.session_state.get("uc_skipped", [])
-            + st.session_state.get("uc_failed", [])
-        )
-        if t.get("playlist_name") == selected
-    ]
-    pl_raw_df = (
-        pd.DataFrame(_pl_all_raw).rename(columns={"id": "track_id", "name": "track_name", "artists": "artist_name"})
-        if _pl_all_raw else pd.DataFrame(columns=["track_id", "track_name", "artist_name"])
+    pl_raw_df = dup.raw_records_frame(
+        st.session_state.get("uc_enriched", [])
+        + st.session_state.get("uc_skipped", [])
+        + st.session_state.get("uc_failed", []),
+        selected,
     )
     _pl_artist_col = "artist_name"
 else:
     pl_raw_df      = pl_df.copy()
     _pl_artist_col = "artist_display" if "artist_display" in pl_raw_df.columns else "artist_name"
 
-pl_raw_df = pl_raw_df[pl_raw_df["track_id"].notna() & (pl_raw_df["track_id"].astype(str) != "")]
+pl_raw_df = dup.drop_missing_ids(pl_raw_df)
 
 st.markdown("## Exact Duplicates")
 st.markdown(
@@ -300,12 +260,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-_pl_id_groups = (
-    pl_raw_df.groupby("track_id")
-    .agg(count=("track_id", "count"), track_name=("track_name", "first"), artist=(_pl_artist_col, "first"))
-    .reset_index()
-)
-_pl_id_dupes = _pl_id_groups[_pl_id_groups["count"] > 1].sort_values("count", ascending=False).reset_index(drop=True)
+_pl_id_dupes = dup.exact_duplicates(pl_raw_df, _pl_artist_col)
 
 if _pl_id_dupes.empty:
     st.markdown(
@@ -339,14 +294,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-_pl_ver_groups = (
-    pl_raw_df.groupby(["track_name", "artist_name"])
-    .agg(n_unique_ids=("track_id", "nunique"), total=("track_id", "count"))
-    .reset_index()
-)
-_pl_versions = _pl_ver_groups[
-    (_pl_ver_groups["total"] > 1) & (_pl_ver_groups["n_unique_ids"] > 1)
-].sort_values("track_name").reset_index(drop=True)
+_pl_versions = dup.different_versions(pl_raw_df)
 
 if _pl_versions.empty:
     st.markdown(
@@ -384,21 +332,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-_radar_feats_avail = [f for f in CLUSTER_FEATURES if f in af_avg.columns] if not af_avg.empty else []
-_pl_has_audio = (
-    pl_af is not None
-    and global_af is not None
-    and _radar_feats_avail
-    and not pl_af[_radar_feats_avail].isna().all()
-)
+radar = pd_core.radar_profile(af_avg, audio, CLUSTER_FEATURES)
 
-if _pl_has_audio:
-    def normalize_tempo(val):
-        return (val - 60) / (200 - 60)
-
-    _radar_feats = _radar_feats_avail
-    pl_vals     = [pl_af[f] if f != "tempo" else normalize_tempo(pl_af[f]) for f in _radar_feats]
-    global_vals = [global_af[f] if f != "tempo" else normalize_tempo(global_af[f]) for f in _radar_feats]
+if radar is not None:
+    _radar_feats = radar.features
+    pl_vals      = radar.playlist_values
+    global_vals  = radar.global_values
 
     fig_radar = go.Figure()
     fig_radar.add_trace(go.Scatterpolar(
@@ -461,12 +400,7 @@ ERA_COLORS = {
 with col1:
     st.markdown("#### By Decade")
     if "decade" in pl_df.columns:
-        decade_counts = (
-            pl_df["decade"].dropna().astype(int)
-            .value_counts().sort_index().reset_index()
-        )
-        decade_counts.columns = ["decade", "count"]
-        decade_counts["label"] = decade_counts["decade"].astype(str) + "s"
+        decade_counts = pd_core.decade_counts(pl_df)
         decade_counts["color"] = decade_counts["decade"].map(
             lambda d: ERA_COLORS.get(d, "#1DB954")
         )
@@ -489,20 +423,7 @@ with col1:
         if selected_dec and selected_dec.selection and selected_dec.selection.points:
             decade_label = selected_dec.selection.points[0]["x"]
             decade_val   = int(decade_label.replace("s", ""))
-            dec_tracks   = (
-                pl_df[pl_df["decade"].astype("Int64") == decade_val]
-                [[c for c in ["track_name", "artist_display", "release_year", "popularity_raw"] if c in pl_df.columns]]
-                .copy()
-                .sort_values("popularity_raw", ascending=False) if "popularity_raw" in pl_df.columns
-                else pl_df[pl_df["decade"].astype("Int64") == decade_val]
-                [[c for c in ["track_name", "artist_display", "release_year"] if c in pl_df.columns]].copy()
-            )
-            if "release_year" in dec_tracks.columns:
-                dec_tracks["release_year"] = dec_tracks["release_year"].fillna(0).astype("Int64")
-            dec_tracks = dec_tracks.rename(columns={
-                "track_name": "Track", "artist_display": "Artist",
-                "release_year": "Year", "popularity_raw": "Popularity",
-            })
+            dec_tracks   = pd_core.decade_track_listing(pl_df, decade_val)
             st.markdown(
                 f"<p style='color:#1DB954;font-weight:700;font-size:1rem;margin-bottom:4px;'>"
                 f"📅 {len(dec_tracks)} tracks — {decade_label}</p>",
@@ -515,11 +436,7 @@ with col1:
 with col2:
     st.markdown("#### By Year")
     if "release_year" in pl_df.columns:
-        year_counts = (
-            pl_df["release_year"].dropna().astype(int)
-            .value_counts().sort_index().reset_index()
-        )
-        year_counts.columns = ["year", "count"]
+        year_counts = pd_core.year_counts(pl_df)
 
         fig_year = go.Figure(go.Scatter(
             x=year_counts["year"],
@@ -552,17 +469,7 @@ st.markdown(
 )
 
 if "artist_genres" in pl_df.columns:
-    genres_series = (
-        pl_df["artist_genres"]
-        .dropna()
-        .str.split(", ")
-        .explode()
-        .str.strip()
-    )
-    genres_series = genres_series[genres_series != ""]
-    top_genres = genres_series.value_counts().head(15).reset_index()
-    top_genres.columns = ["genre", "count"]
-    top_genres = top_genres.sort_values("count")
+    top_genres = pd_core.top_genres(pl_df, 15)
 
     fig_genres = go.Figure()
     for _, row in top_genres.iterrows():
@@ -609,11 +516,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-_scatter_audio = [c for c in ["energy", "valence"] if c in pl_df.columns]
-scatter_df = pl_df[["track_name", "artist_display"] + _scatter_audio +
-                   (["popularity_raw"] if "popularity_raw" in pl_df.columns else [])].dropna()
+scatter_df = pd_core.mood_map_points(pl_df)
 
-if len(_scatter_audio) == 2:
+if pd_core.mood_map_available(pl_df):
     if "popularity_raw" in pl_df.columns:
         fig_scatter = px.scatter(
             scatter_df,
@@ -699,22 +604,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if "added_at" in pl_df.columns:
-    _monthly = (
-        pl_df.assign(_month=pd.to_datetime(pl_df["added_at"]).dt.to_period("M").astype(str))
-        .groupby("_month")
-        .size()
-        .reset_index(name="count")
-    )
-    _monthly.columns = ["period", "count"]
-    monthly_raw = _monthly
-else:
-    monthly_raw = pd.DataFrame()
+monthly_raw = pd_core.monthly_additions(pl_df)
 
 if monthly_raw.empty or len(monthly_raw) <= 1:
     # Check if it's the "added all at once" scenario vs genuinely missing data
-    if "added_at" in pl_df.columns and pl_df["added_at"].notna().any():
-        single_date = pd.to_datetime(pl_df["added_at"].dropna().iloc[0]).strftime("%B %d, %Y")
+    single_date = pd_core.single_session_date(pl_df)
+    if single_date is not None:
         st.markdown(
             f"""
             <div style='background:#282828;border-radius:12px;padding:20px 24px;border:1px solid #333;'>
@@ -734,14 +629,12 @@ if monthly_raw.empty or len(monthly_raw) <= 1:
             unsafe_allow_html=True,
         )
 else:
-    monthly = monthly_raw.copy()
-    monthly.columns = ["period", "count"]
-    monthly["month"] = pd.to_datetime(monthly["period"], format="%Y-%m")
+    monthly = pd_core.growth_timeline(monthly_raw)
 
     # Annotation: peak month
-    peak_idx   = monthly["count"].idxmax()
-    peak_month = monthly.loc[peak_idx, "month"].strftime("%b %Y")
-    peak_count = int(monthly.loc[peak_idx, "count"])
+    _peak      = pd_core.peak_month(monthly)
+    peak_month = _peak.label
+    peak_count = _peak.count
 
     fig_growth = go.Figure(go.Scatter(
         x=monthly["month"],
@@ -756,7 +649,7 @@ else:
 
     # Peak annotation
     fig_growth.add_annotation(
-        x=monthly.loc[peak_idx, "month"],
+        x=_peak.month,
         y=peak_count,
         text=f"Peak: {peak_count} tracks",
         showarrow=True,
@@ -780,7 +673,6 @@ else:
     st.plotly_chart(fig_growth, use_container_width=True)
 
     # Summary line below chart
-    span_months = (monthly["month"].max() - monthly["month"].min()).days // 30 + 1
     total_months_active = len(monthly)
     st.markdown(
         f"<p style='color:#1DB954;font-weight:700;font-size:0.95rem;'>"
@@ -803,26 +695,10 @@ if df["playlist_name"].nunique() > 1:
         unsafe_allow_html=True,
     )
 
-    if not af_avg.empty and pl_af is not None:
-        numeric_features = ["energy", "acousticness", "valence", "danceability", "instrumentalness", "tempo"]
-        _avail_feats = [f for f in numeric_features if f in af_avg.columns]
-
-        if _avail_feats:
-            # Normalise tempo for fair distance
-            af_norm = af_avg.copy()
-            if "tempo" in af_norm.columns:
-                af_norm["tempo"] = (af_norm["tempo"] - 60) / (200 - 60)
-
-            selected_vec = af_norm[af_norm["playlist_name"] == selected][_avail_feats].values[0]
-            others = af_norm[af_norm["playlist_name"] != selected].copy()
-            others["distance"] = others[_avail_feats].apply(
-                lambda row: np.sqrt(np.sum((row.values - selected_vec) ** 2)), axis=1
-            )
-            similar = others.sort_values("distance").head(5).reset_index(drop=True)
-
-            max_dist = similar["distance"].max()
-            similar["similarity_pct"] = (1 - similar["distance"] / max_dist) * 100
-            similar = similar[similar["similarity_pct"].round() > 0].reset_index(drop=True)
+    if not af_avg.empty and audio.playlist is not None:
+        if pd_core.similarity_features(af_avg):
+            # Distance on normalised features (tempo scaled to 0-1)
+            similar = pd_core.with_similarity_pct(pd_core.similar_playlists(af_avg, selected, 5))
 
             if similar.empty:
                 st.markdown(
@@ -864,31 +740,7 @@ if df["playlist_name"].nunique() > 1:
 # ---------------------------------------------------------------------------
 st.markdown("## All Tracks")
 
-_base_cols = ["track_name", "artist_display"]
-_optional  = ["release_year", "duration_raw", "popularity_raw"]
-_audio     = ["energy", "valence", "danceability", "acousticness"]
-_table_cols = _base_cols + [c for c in _optional if c in pl_df.columns] + [c for c in _audio if c in pl_df.columns]
-
-table = pl_df[_table_cols].copy()
-
-if "duration_raw" in table.columns:
-    table["duration_raw"] = table["duration_raw"].apply(fmt_duration)
-if "release_year" in table.columns:
-    table["release_year"] = table["release_year"].fillna(0).astype("Int64")
-if "popularity_raw" in table.columns:
-    table["popularity_raw"] = table["popularity_raw"].astype(int)
-
-table = table.rename(columns={
-    "track_name":     "Track",
-    "artist_display": "Artist",
-    "release_year":   "Year",
-    "duration_raw":   "Duration",
-    "popularity_raw": "Popularity",
-    "energy":         "Energy",
-    "valence":        "Valence",
-    "danceability":   "Danceability",
-    "acousticness":   "Acousticness",
-})
+table = pd_core.track_table(pl_df)
 
 st.dataframe(
     table.reset_index(drop=True),
