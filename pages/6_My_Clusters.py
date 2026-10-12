@@ -54,7 +54,7 @@ try:
     _progress = load_cluster_progress(user_key)
     # If the user explicitly reset YC progress, treat DB as empty regardless of
     # what it says — the DB DELETE may have failed silently, but we honour the reset.
-    if user_key != "facu" and st.session_state.get("_uc_progress_cleared"):
+    if st.session_state.get("_uc_progress_cleared"):
         _progress = {}
     if "done_tracks" not in st.session_state:
         st.session_state["done_tracks"] = {
