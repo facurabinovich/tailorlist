@@ -9,124 +9,74 @@ import pandas as pd
 import pytest
 from unittest.mock import patch
 
+from core import artist_album as aa
 from core.formatting import fmt_duration
 
 
-MIN_TRACKS_ARTIST = 5
-MIN_TRACKS_ALBUM  = 3
-BIN_SIZE          = 5
-RADAR_FEATURES    = ["energy", "valence", "danceability", "acousticness", "speechiness", "liveness"]
+MIN_TRACKS_ARTIST = aa.MIN_TRACKS_ARTIST
+MIN_TRACKS_ALBUM  = aa.MIN_TRACKS_ALBUM
+BIN_SIZE          = aa.POPULARITY_BIN_SIZE
+RADAR_FEATURES    = aa.RADAR_FEATURES
 
 
 # ---------------------------------------------------------------------------
-# Helpers — mirrors pure logic from 3_Artist_Album.py
+# Thin adapters over the real code in core/artist_album.py (the page logic lives there)
 # ---------------------------------------------------------------------------
 
 def genre_pills_html(genres_series: pd.Series) -> str:
-    all_genres: list[str] = []
-    for val in genres_series.dropna():
-        all_genres.extend([g.strip() for g in str(val).split(",") if g.strip()])
-    counts = pd.Series(all_genres).value_counts()
-    top = counts.head(8).index.tolist()
+    # The page wraps core's top_genre_tags in these spans (HTML stays in the page).
     pills = "".join(
         f'<span style="background:#1DB954;color:#000;border-radius:12px;'
         f'padding:2px 10px;margin:2px;font-size:0.75rem;font-weight:600;'
         f'display:inline-block;">{g}</span>'
-        for g in top
+        for g in aa.top_genre_tags(genres_series)
     )
     return pills
 
 
 def eligible_artists(df: pd.DataFrame, min_tracks: int = MIN_TRACKS_ARTIST):
-    track_counts_all = df["artist_name"].value_counts()
-    filtered = track_counts_all[track_counts_all >= min_tracks]
-    return sorted(filtered.index.tolist()), filtered
+    return aa.artist_choices(df, min_tracks).options_raw, None
 
 
 def eligible_albums(df: pd.DataFrame, min_tracks: int = MIN_TRACKS_ALBUM):
-    pair_counts = (
-        df.dropna(subset=["album_name", "artist_name", "track_id"])
-        .groupby(["album_name", "artist_name"], observed=True)["track_id"]
-        .nunique()
-        .reset_index(name="n")
-    )
-    pair_counts = pair_counts[pair_counts["n"] >= min_tracks].copy()
-    pair_counts["label"] = pair_counts["album_name"] + " — " + pair_counts["artist_name"]
-    pair_counts = pair_counts.sort_values("label")
-    return pair_counts.reset_index(drop=True)
+    return aa.album_choices(df, min_tracks).pairs
 
 
 def build_rank_map_artists(df: pd.DataFrame, min_tracks: int = MIN_TRACKS_ARTIST) -> dict:
-    track_counts_all = df["artist_name"].value_counts()
-    ranked = (
-        track_counts_all[track_counts_all >= min_tracks]
-        .sort_values(ascending=False)
-        .reset_index()
-    )
-    ranked.columns = ["artist_name", "count"]
-    return {row["artist_name"]: i + 1 for i, row in ranked.head(20).iterrows()}
+    return aa.artist_choices(df, min_tracks).rank_map
 
 
-def build_rank_map_albums(pair_counts: pd.DataFrame) -> dict:
-    top10 = pair_counts.nlargest(10, "n").reset_index(drop=True)
-    return {row["label"]: i + 1 for i, row in top10.iterrows()}
+def build_rank_map_albums(df: pd.DataFrame) -> dict:
+    return aa.album_choices(df).rank_map
 
 
 def build_options(names: list, rank_map: dict) -> list:
-    return [
-        f"🏆 #{rank_map[name]} · {name}" if name in rank_map else name
-        for name in names
-    ]
+    return aa._badged(names, rank_map)
 
 
 def dedup_sel_df(sel_df: pd.DataFrame) -> pd.DataFrame:
-    if "track_id" in sel_df.columns:
-        return sel_df.drop_duplicates(subset=["track_id", "playlist_name"])
-    return sel_df
+    return aa.artist_rows(sel_df.assign(artist_name="A"), "A")
 
 
-def normalize_duration(sel_df: pd.DataFrame, is_yc: bool) -> pd.DataFrame:
-    sel_df = sel_df.copy()
-    if "duration_raw" in sel_df.columns:
-        sel_df["duration_min"] = sel_df["duration_raw"] / 60_000 if is_yc else sel_df["duration_raw"]
-    return sel_df
+def normalize_duration(sel_df: pd.DataFrame) -> pd.DataFrame:
+    return aa.artist_rows(sel_df.assign(artist_name="A"), "A")
 
 
 def compute_popularity_bins(pop_vals: pd.Series, bin_size: int = BIN_SIZE):
-    bin_edges  = list(range(0, 105, bin_size))
-    bin_labels = [f"{b}–{b + bin_size - 1}" for b in bin_edges[:-1]]
-    bin_counts = [
-        int(((pop_vals >= b) & (pop_vals < b + bin_size)).sum())
-        for b in bin_edges[:-1]
-    ]
-    non_zero = [(l, c, b) for l, c, b in zip(bin_labels, bin_counts, bin_edges[:-1]) if c > 0]
-    return non_zero
+    d = aa.popularity_distribution(pd.DataFrame({"popularity_raw": pop_vals}))
+    return list(zip(d.bin_labels, d.counts, d.bin_starts))
 
 
 def compute_release_timeline(sel_df: pd.DataFrame) -> pd.DataFrame:
-    return (
-        sel_df.dropna(subset=["release_year"])
-        .groupby("release_year", observed=True)
-        .size()
-        .reset_index(name="count")
-        .sort_values("release_year", ascending=False)
-    )
+    return aa.release_year_counts(sel_df)
 
 
 def compute_tempo_norm(sel_df: pd.DataFrame, df_all: pd.DataFrame) -> float:
-    t_min = df_all["tempo"].min()
-    t_max = df_all["tempo"].max()
-    mean_raw = sel_df["tempo"].mean()
-    return (mean_raw - t_min) / (t_max - t_min) if t_max > t_min else 0.5
+    return aa.audio_radar(sel_df, df_all).axis_values[-1]
 
 
 def compute_playlist_dist(sel_df: pd.DataFrame) -> pd.DataFrame:
-    return (
-        sel_df.groupby("playlist_name", observed=True)
-        .size()
-        .reset_index(name="count")
-        .sort_values("count", ascending=False)
-    )
+    return aa.playlist_distribution(sel_df)
 
 
 # ---------------------------------------------------------------------------
@@ -355,8 +305,7 @@ class TestRankMapAndOptions:
         assert options[0] == "Artist Z"
 
     def test_album_rank_map_top_album_is_rank_1(self, album_df):
-        pairs = eligible_albums(album_df)
-        rank_map = build_rank_map_albums(pairs)
+        rank_map = build_rank_map_albums(album_df)
         # Album X has 5 unique tracks — should be rank 1
         top_label = next(l for l in rank_map if "Album X" in l)
         assert rank_map[top_label] == 1
@@ -409,17 +358,19 @@ class TestSelDfFiltering:
 
 class TestDurationNormalization:
     def test_db_mode_uses_raw_directly(self, sel_df):
-        result = normalize_duration(sel_df, is_yc=False)
+        # The app is YC-only now: the old "DB mode" (duration_raw already in minutes) no longer
+        # exists, so duration_min is always duration_raw / 60000.
+        result = normalize_duration(sel_df)
         pd.testing.assert_series_equal(
             result["duration_min"].reset_index(drop=True),
-            sel_df["duration_raw"].reset_index(drop=True),
+            (sel_df["duration_raw"] / 60_000).reset_index(drop=True),
             check_names=False,
         )
 
     def test_yc_mode_divides_by_60000(self, sel_df):
         sel_ms = sel_df.copy()
         sel_ms["duration_raw"] = sel_ms["duration_raw"] * 60_000
-        result = normalize_duration(sel_ms, is_yc=True)
+        result = normalize_duration(sel_ms)
         expected = sel_df["duration_raw"]
         pd.testing.assert_series_equal(
             result["duration_min"].reset_index(drop=True),
@@ -428,8 +379,8 @@ class TestDurationNormalization:
         )
 
     def test_no_duration_column_leaves_df_unchanged(self):
-        df = pd.DataFrame({"track_id": ["t1"], "track_name": ["S"]})
-        result = normalize_duration(df, is_yc=False)
+        df = pd.DataFrame({"track_id": ["t1"], "track_name": ["S"], "playlist_name": ["P"]})
+        result = normalize_duration(df)
         assert "duration_min" not in result.columns
 
 
@@ -514,18 +465,16 @@ class TestReleaseTimeline:
 
 class TestAlbumReleaseYear:
     def test_mode_year_selected(self):
-        yr_vals = pd.Series([1995, 1995, 1996])
-        album_year = int(yr_vals.mode().iloc[0])
+        sel = pd.DataFrame({"release_year": [1995, 1995, 1996]})
+        album_year = aa.album_release(sel, 2026).year
         assert album_year == 1995
 
     def test_years_ago_calculation(self):
-        album_year = 2010
-        years_ago = datetime.date.today().year - album_year
+        years_ago = aa.album_release(pd.DataFrame({"release_year": [2010]}), 2026).years_ago
         assert years_ago == 2026 - 2010  # 16
 
     def test_this_year_label(self):
-        album_year = datetime.date.today().year
-        years_ago = datetime.date.today().year - album_year
+        years_ago = aa.album_release(pd.DataFrame({"release_year": [2026]}), 2026).years_ago
         ago_str = f"{years_ago} years ago" if years_ago > 0 else "This year"
         assert ago_str == "This year"
 
@@ -536,30 +485,25 @@ class TestAlbumReleaseYear:
 
 class TestExtremes:
     def test_longest_track_identified(self, sel_df):
-        df = normalize_duration(sel_df, is_yc=False)
-        dur_valid = df.dropna(subset=["duration_min"])
-        longest = dur_valid.loc[dur_valid["duration_min"].idxmax()]
+        df = normalize_duration(sel_df)
+        longest = aa.track_extremes(df, include_years=True).longest
         assert longest["duration_min"] == df["duration_min"].max()
 
     def test_shortest_track_identified(self, sel_df):
-        df = normalize_duration(sel_df, is_yc=False)
-        dur_valid = df.dropna(subset=["duration_min"])
-        shortest = dur_valid.loc[dur_valid["duration_min"].idxmin()]
+        df = normalize_duration(sel_df)
+        shortest = aa.track_extremes(df, include_years=True).shortest
         assert shortest["duration_min"] == df["duration_min"].min()
 
     def test_most_popular_track_identified(self, sel_df):
-        pop_valid = sel_df.dropna(subset=["popularity_raw"])
-        most_pop = pop_valid.loc[pop_valid["popularity_raw"].idxmax()]
+        most_pop = aa.track_extremes(sel_df, include_years=True).most_popular
         assert most_pop["popularity_raw"] == sel_df["popularity_raw"].max()
 
     def test_least_popular_track_identified(self, sel_df):
-        pop_valid = sel_df.dropna(subset=["popularity_raw"])
-        least_pop = pop_valid.loc[pop_valid["popularity_raw"].idxmin()]
+        least_pop = aa.track_extremes(sel_df, include_years=True).least_popular
         assert least_pop["popularity_raw"] == sel_df["popularity_raw"].min()
 
     def test_oldest_track_identified(self, sel_df):
-        yr_valid = sel_df.dropna(subset=["release_year"])
-        oldest = yr_valid.loc[yr_valid["release_year"].idxmin()]
+        oldest = aa.track_extremes(sel_df, include_years=True).oldest
         assert oldest["release_year"] == sel_df["release_year"].min()
 
     def test_nan_duration_rows_excluded(self):
@@ -567,8 +511,7 @@ class TestExtremes:
             "duration_min": [None, 3.5, 5.0],
             "track_name":   ["A", "B", "C"],
         })
-        dur_valid = df.dropna(subset=["duration_min"])
-        longest = dur_valid.loc[dur_valid["duration_min"].idxmax()]
+        longest = aa.track_extremes(df, include_years=False).longest
         assert longest["track_name"] == "C"
 
 
@@ -603,17 +546,17 @@ class TestPlaylistDistribution:
 class TestAudioFingerprint:
     def test_available_radar_filters_missing_cols(self):
         df = pd.DataFrame({"energy": [0.8], "valence": [0.6]})
-        avail = [f for f in RADAR_FEATURES if f in df.columns]
+        avail = aa.audio_radar(df, df).features
         assert avail == ["energy", "valence"]
 
     def test_at_least_3_features_required(self):
         df = pd.DataFrame({"energy": [0.8], "valence": [0.6]})
-        avail = [f for f in RADAR_FEATURES if f in df.columns]
+        avail = aa.audio_radar(df, df).features
         assert len(avail) < 3  # not enough → section skipped
 
     def test_means_computed_correctly(self, sel_df):
-        avail = [f for f in RADAR_FEATURES if f in sel_df.columns]
-        means = sel_df[avail].mean()
+        radar = aa.audio_radar(sel_df, sel_df)
+        means = dict(zip(radar.features, radar.feature_means))
         assert means["energy"] == pytest.approx(sel_df["energy"].mean())
 
     def test_tempo_normalized_to_0_1(self, sel_df):
@@ -630,10 +573,9 @@ class TestAudioFingerprint:
         assert norm == pytest.approx(0.5)
 
     def test_polygon_closed_correctly(self, sel_df):
-        avail = [f for f in RADAR_FEATURES if f in sel_df.columns]
-        means = sel_df[avail].mean()
-        values = means.tolist()
-        labels = avail
+        radar = aa.audio_radar(sel_df, sel_df)
+        values = radar.axis_values
+        labels = radar.axis_labels
 
         closed_labels = labels + [labels[0]]
         closed_values = values + [values[0]]
