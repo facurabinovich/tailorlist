@@ -491,6 +491,8 @@ def test_refresh_button_in_real_page_clears_caches(monkeypatch):
     mod.load_data_fc.clear(); mod.load_all_grouping_fc.clear()
 
     at = AppTest.from_file(str(ROOT / "pages" / "6_My_Clusters.py"), default_timeout=60)
+    # nav no longer defaults to FC; this test exercises the FC path until R3 removes it
+    at.session_state["mode"] = "🎵 Demo Collection"
     at.run()
     assert not at.exception, at.exception
     mod.load_all_grouping_fc(); mod.load_all_grouping_fc()  # populate (the page only uses it conditionally)

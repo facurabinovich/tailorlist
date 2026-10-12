@@ -1,7 +1,8 @@
 import re as _re
 import streamlit as st
 
-# Stored in st.session_state["mode"] and shown in the sidebar radio, so these strings must not change.
+# Stored in st.session_state["mode"]; no longer shown in a sidebar radio (nav defaults to MODE_YC).
+# MODE_FC is only kept until R2-R4 remove the remaining FC branches.
 MODE_FC = "🎵 Demo Collection"
 MODE_YC = "🔗 Your Collection"
 

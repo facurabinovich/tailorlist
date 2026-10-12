@@ -2,7 +2,7 @@ import uuid as _uuid
 import streamlit as st
 
 from config import is_dev_mode
-from app_state.session import resolve_sid, mark_uc_session_unavailable, _UUID_RE, MODE_FC, MODE_YC
+from app_state.session import resolve_sid, mark_uc_session_unavailable, _UUID_RE, MODE_YC
 
 # YC sessions expire server-side 7 days after creation (see load_uc_session)
 _SID_COOKIE_MAX_AGE = 7 * 24 * 60 * 60
@@ -128,6 +128,12 @@ def inject_sidebar_nav(page: str = "Home"):
         except Exception:
             pass
 
+    # The app only has Your Collection now. setdefault semantics (not an
+    # overwrite): nothing sets FC anymore; the FC branches still in pages are
+    # removed in R2/R3.
+    if not st.session_state.get("mode"):
+        st.session_state["mode"] = MODE_YC
+
     with st.sidebar:
         st.page_link("pages/0_home.py", label="🏠 Home")
         st.page_link("pages/1_Overview.py", label="📊 Overview")
@@ -138,18 +144,6 @@ def inject_sidebar_nav(page: str = "Home"):
         st.page_link("pages/6_My_Clusters.py", label="🎛️ My Clusters")
         st.page_link("pages/7_Glossary.py", label="ℹ️ Glossary")
         st.page_link("pages/8_Contact.py", label="✉️ Contact")
-
-        _current_mode = st.session_state.get("mode", MODE_FC)
-        _index = 1 if _current_mode == MODE_YC else 0
-
-        mode = st.radio(
-            label="collection_mode",
-            options=[MODE_FC, MODE_YC],
-            label_visibility="collapsed",
-            index=_index,
-            key="mode_radio",
-        )
-        st.session_state["mode"] = mode
 
         st.markdown("---")
         st.markdown(

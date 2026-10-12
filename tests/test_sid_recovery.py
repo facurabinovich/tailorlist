@@ -230,4 +230,5 @@ class TestHomeRecoversFromCookie:
         at, load, _touch = self._run(cookie=None)
         assert not at.exception, at.exception
         assert load.call_count == 0
-        assert "uc_active" not in at.session_state
+        # Home always renders the YC UI now, so the flag is initialised (False)
+        assert at.session_state["uc_active"] is False

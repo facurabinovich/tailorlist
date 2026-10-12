@@ -1,6 +1,6 @@
 # Tareas: refactor de arquitectura
 
-> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Sigue la **Fase 3b, R1** (eliminar el modo FC). Suite: 586 tests, ~60 s. Hallazgos abiertos en `plan.md`: H2, H3, H7, H8 (se resuelve en R2) y H9.
+> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). R1 hecha (2026-10-12); sigue **R2**. Suite: 593 tests, ~3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H8 (se resuelve en R2) y H9.
 
 Plan: [`plan.md`](plan.md) · Spec: [`SPEC.md`](../SPEC.md)
 
@@ -149,7 +149,8 @@ debilitado, un commit por task y los patches migrados en el mismo commit.
 ## Fase 3b: eliminar el modo Demo Collection (FC), decisión de Facu (2026-10-11)
 Arranca después del Checkpoint 3, que valida las Fases 1–3 con FC todavía presente. Un commit por task y suite verde en cada uno. Al terminar, la app sigue mostrando en YC exactamente lo de la línea base.
 
-- [ ] **R1: Un solo modo: sesión, navegación y Home** · M
+- [x] **R1: Un solo modo: sesión, navegación y Home** · M
+  - Hecho (2026-10-12): la nav pone `mode=YC` por defecto (sin pisar un modo explícito; los tests FC de páginas siguen hasta R2/R3) y `MODE_FC` queda definido hasta R2–R4. Decisión de Facu (opción A): el banner "Session expired" (copy ajustado), About, Powered by y el footer pasan de la rama FC de Home a YC; se borran el header demo y las feature cards. App real: 9 páginas sin excepciones; textos = línea base salvo el selector y esos bloques de Home; `?mode=demo` da la misma Home. Suite 593 en ambos órdenes.
   - Acceptance: sin selector de modo en la navegación. `st.session_state["mode"]` deja de decidir nada, y la app siempre trabaja con la colección del usuario. Sale `MODE_FC`, y `MODE_YC` solo queda si algo lo sigue necesitando. Home ya no tiene la sección "DEMO COLLECTION MODE". El deep-link `?mode=` se ignora sin error. La auto-carga de `dev_collection.json` en `DEV_MODE=1` sigue igual, y lo mismo la recuperación de sesión (`?sid=`/cookie), `?playlists=`, enrich y borrar sesión.
   - Verify: suite (los smoke tests FC se eliminan o se migran a YC); app real: Home sin colección muestra el input de URL; con dev collection, todo como en la línea base YC.
   - Files: `app_state/session.py`, `ui/nav.py`, `pages/0_home.py`, tests.
