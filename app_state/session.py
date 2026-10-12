@@ -71,6 +71,12 @@ def load_uc_session(session_id: str):
     return _load(session_id)
 
 
+def delete_session_data(session_id: str) -> None:
+    """Delete a YC session and its cluster progress (thin wrapper so pages never import db/)."""
+    from db.sessions import delete_session_data as _delete
+    _delete(session_id)
+
+
 def needs_restore(sid: str) -> bool:
     """True when a persisted YC session should be loaded for ``sid``.
 

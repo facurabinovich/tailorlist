@@ -44,6 +44,12 @@ def test_pages_contain_no_sql_execution(path):
     assert not offenders, f"{path.name} runs SQL directly: {offenders}"
 
 
+@pytest.mark.parametrize("path", _py_files("pages"), ids=lambda p: p.name)
+def test_pages_do_not_import_db(path):
+    """Pages reach persistence only through app_state (SPEC.md layering)."""
+    assert "db" not in _imported_roots(_parse(path)), f"{path.name} imports db — add an app_state wrapper"
+
+
 @pytest.mark.parametrize("path", _py_files("ui"), ids=lambda p: p.name)
 def test_ui_does_not_import_db(path):
     assert "db" not in _imported_roots(_parse(path)), f"{path.name} imports db"

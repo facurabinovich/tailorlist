@@ -31,6 +31,18 @@ def test_delete_session_data(engine):
     ]
 
 
+def test_touch_uc_session(engine, monkeypatch):
+    # Regression: the db split left _migrate_analytics_schema unimported here (NameError).
+    monkeypatch.setattr("db.analytics._analytics_migrated", True)
+    from db.sessions import touch_uc_session
+    eng, conn = engine
+    touch_uc_session("sid-1")
+    assert _calls(conn) == [
+        ("UPDATE uc_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE session_id = :sid",
+         {"sid": "sid-1"}),
+    ]
+
+
 def test_delete_done_progress(engine):
     from db.progress import delete_done_progress
     eng, conn = engine

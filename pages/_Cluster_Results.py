@@ -8,7 +8,7 @@ from datetime import datetime
 from config import CLUSTER_FEATURES
 from core.clustering import verbose_description as _verbose_description
 from config import is_dev_mode
-from db.progress import (
+from app_state.progress import (
     load_cluster_progress, save_cluster_progress, save_cluster_progress_bulk,
 )
 from ui.export import render_export_to_spotify
@@ -110,7 +110,7 @@ def _track(event: str, **props):
     if is_dev_mode():
         return
     try:
-        from db.analytics import track_event
+        from app_state.analytics import track_event
         track_event(
             event      = event,
             page       = "Cluster Results",
@@ -725,7 +725,7 @@ for rank, row in cluster_sorted.iterrows():
                 _tids_reopen = set(cluster_track_ids)
                 st.session_state["done_tracks"] -= _tids_reopen
                 try:
-                    from db.progress import delete_done_progress
+                    from app_state.progress import delete_done_progress
                     delete_done_progress(user_key, _tids_reopen)
                 except Exception:
                     pass
@@ -1052,7 +1052,7 @@ def _render_unmatched_section():
             if _tids_to_reopen:
                 st.session_state["done_tracks"] -= _tids_to_reopen
                 try:
-                    from db.progress import delete_done_progress
+                    from app_state.progress import delete_done_progress
                     delete_done_progress(user_key, _tids_to_reopen)
                 except Exception:
                     pass
@@ -1201,7 +1201,7 @@ def _apply_keep_visible():
     if _to_restore:
         st.session_state["done_tracks"] -= _to_restore
         try:
-            from db.progress import delete_progress_for_tracks
+            from app_state.progress import delete_progress_for_tracks
             delete_progress_for_tracks(user_key, _to_restore)
         except Exception:
             pass

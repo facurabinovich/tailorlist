@@ -445,7 +445,7 @@ else:
         if st.button("🗑️ Delete my session data", type="secondary",
                      key="uc_delete_session"):
             if st.session_state.get("uc_session_id"):
-                from db.sessions import delete_session_data
+                from app_state.session import delete_session_data
                 try:
                     delete_session_data(st.session_state["uc_session_id"])
                 except Exception:

@@ -1,4 +1,5 @@
 import json as _json
+from db.analytics import _migrate_analytics_schema
 from db.connection import get_engine
 from db.progress import _ensure_tables
 from sqlalchemy import text as _text

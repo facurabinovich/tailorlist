@@ -47,7 +47,7 @@ if st.session_state.pop("_start_fresh", False):
         "_unmatched_done_ids", "_total_assigned_count",
     ]:
         st.session_state.pop(_key, None)
-from db.progress import load_cluster_progress, save_cluster_progress, reset_cluster_progress
+from app_state.progress import load_cluster_progress, save_cluster_progress, reset_cluster_progress
 user_key = st.session_state.get("uc_session_id", "anonymous")
 
 _progress = {}
@@ -1096,7 +1096,7 @@ if submitted:
         }
         if not is_dev_mode():
             try:
-                from db.analytics import track_event as _te
+                from app_state.analytics import track_event as _te
                 _cr = st.session_state["clustering_results"]
                 _te("clustering_run", page="My Clusters",
                     session_id=st.session_state.get("uc_session_id", "anonymous"),
@@ -1186,7 +1186,7 @@ if submitted:
         }
         if not is_dev_mode():
             try:
-                from db.analytics import track_event as _te
+                from app_state.analytics import track_event as _te
                 _cr = st.session_state["clustering_results"]
                 _te("clustering_run", page="My Clusters",
                     session_id=st.session_state.get("uc_session_id", "anonymous"),
@@ -1305,7 +1305,7 @@ if submitted:
         }
         if not is_dev_mode():
             try:
-                from db.analytics import track_event as _te
+                from app_state.analytics import track_event as _te
                 _cr = st.session_state["clustering_results"]
                 _te("clustering_run", page="My Clusters",
                     session_id=st.session_state.get("uc_session_id", "anonymous"),
