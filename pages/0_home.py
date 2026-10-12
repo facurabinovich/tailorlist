@@ -347,7 +347,7 @@ else:
         n_unique_with_af    = _sum.n_unique_with_af
         n_unique_without_af = _sum.n_unique_without_af
         total               = _sum.total
-        _dupe_text          = duplicate_note(_sum.cross_dupes, _sum.intra_dupes)
+        _dupe_text          = duplicate_note(_sum.cross_dupes, _sum.intra_dupes, _sum.unavailable)
         _dupe_note_home = (
             f' · <span style="color:#888;">' + _dupe_text + "</span>"
         ) if _dupe_text else ""

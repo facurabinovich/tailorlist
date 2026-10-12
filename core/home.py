@@ -38,10 +38,13 @@ class CollectionSummary:
         n_unique_with_af: unique Spotify ids among enriched tracks.
         n_unique_without_af: unique ids among skipped + failed tracks that are not also enriched.
         total: n_unique_with_af + n_unique_without_af.
-        cross_dupes: raw tracks that are repeats across playlists (n_raw - total, floored at 0).
-        intra_dupes: tracks Spotify reports in the playlists but that never came back
-            (sum of playlist track_count - n_raw, floored at 0); i.e. repeats inside a playlist.
+        cross_dupes: repeats across playlists (a track in two playlists counts once here).
+        intra_dupes: repeats inside one playlist (the same track saved twice in it).
         total_dupes: cross_dupes + intra_dupes.
+        unavailable: playlist entries Spotify returns without an id (local files, tracks
+            removed from Spotify); they never reach the collection.
+
+    See summarize_collection for how sessions without fetch stats are handled.
     """
     n_enriched: int
     n_skipped: int
@@ -53,6 +56,7 @@ class CollectionSummary:
     cross_dupes: int
     intra_dupes: int
     total_dupes: int
+    unavailable: int = 0
 
 
 @dataclass(frozen=True)
@@ -143,6 +147,11 @@ def summarize_collection(enriched: list[dict], skipped: list[dict], failed: list
     Uniqueness is by Spotify ``id`` (records without one are ignored by the unique counts).
     A skipped/failed track whose id was also enriched counts once, as enriched.
     ``playlists[*]["track_count"]`` (missing = 0) is what Spotify reported per playlist.
+
+    When every playlist carries the fetch stats (``n_fetched``/``n_unique``, see
+    core.enrichment.playlist_fetch_stats) the three kinds are exact. Sessions saved before
+    those stats existed can't tell them apart: every raw repeat is reported as
+    cross-playlist and the rest of the gap to Spotify's count as unavailable.
     """
     enriched_ids = {t["id"] for t in enriched if t.get("id")}
     unenriched_ids = {t["id"] for t in (skipped + failed) if t.get("id")} - enriched_ids
@@ -151,29 +160,40 @@ def summarize_collection(enriched: list[dict], skipped: list[dict], failed: list
     total = n_with + n_without
     n_raw = len(enriched) + len(skipped) + len(failed)
     spotify_total = sum(pl.get("track_count", 0) for pl in playlists)
-    cross = max(0, n_raw - total)
-    intra = max(0, spotify_total - n_raw)
+    if playlists and all("n_fetched" in pl and "n_unique" in pl for pl in playlists):
+        unavailable = sum(max(0, pl.get("track_count", 0) - pl["n_fetched"]) for pl in playlists)
+        intra = sum(pl["n_fetched"] - pl["n_unique"] for pl in playlists)
+        cross = max(0, sum(pl["n_unique"] for pl in playlists) - total)
+    else:
+        unavailable = max(0, spotify_total - n_raw)
+        intra = 0
+        cross = max(0, n_raw - total)
     return CollectionSummary(
         n_enriched=len(enriched), n_skipped=len(skipped), n_failed=len(failed), n_raw=n_raw,
         n_unique_with_af=n_with, n_unique_without_af=n_without, total=total,
         cross_dupes=cross, intra_dupes=intra, total_dupes=cross + intra,
+        unavailable=unavailable,
     )
 
 
-def duplicate_note(cross_dupes: int, intra_dupes: int) -> str:
-    """Plain-text duplicate note, e.g. "3 duplicate(s) not counted (2 across playlists, 1 within same playlist)".
+def duplicate_note(cross_dupes: int, intra_dupes: int, unavailable: int = 0) -> str:
+    """Plain-text note on what the unique count leaves out, e.g.
+    "3 duplicate(s) not counted (2 across playlists, 1 within same playlist) · 1 unavailable on Spotify".
 
-    Returns "" when there are no duplicates. The parenthesis part lists only the non-zero kinds.
+    Returns "" when nothing is left out. Only the non-zero kinds are listed.
     """
+    notes = []
     total = cross_dupes + intra_dupes
-    if total <= 0:
-        return ""
-    parts = []
-    if cross_dupes > 0:
-        parts.append(f"{cross_dupes} across playlists")
-    if intra_dupes > 0:
-        parts.append(f"{intra_dupes} within same playlist")
-    return f"{total} duplicate(s) not counted" + (f" ({', '.join(parts)})" if parts else "")
+    if total > 0:
+        parts = []
+        if cross_dupes > 0:
+            parts.append(f"{cross_dupes} across playlists")
+        if intra_dupes > 0:
+            parts.append(f"{intra_dupes} within same playlist")
+        notes.append(f"{total} duplicate(s) not counted ({', '.join(parts)})")
+    if unavailable > 0:
+        notes.append(f"{unavailable} unavailable on Spotify")
+    return " · ".join(notes)
 
 
 def missing_features_note(n_skipped: int, n_failed: int) -> str:

@@ -15,8 +15,8 @@ from app_state.enrichment import (
     set_pending_tracks, take_snapshot_once, track_enrichment_start,
 )
 from core.enrichment import (
-    estimate_eta, estimated_remaining_min, progress_fraction, retry_note,
-    rotation_index, wait_tier,
+    estimate_eta, estimated_remaining_min, playlist_fetch_stats, progress_fraction,
+    retry_note, rotation_index, wait_tier,
 )
 
 import base64
@@ -81,6 +81,7 @@ if "uc_all_tracks" not in st.session_state:
                 raw = get_playlist_tracks(pl["id"])
                 for t in raw:
                     t["playlist_name"] = pl["name"]
+                pl.update(playlist_fetch_stats(raw))
                 all_tracks.extend(raw)
         except Exception as e:
             import requests

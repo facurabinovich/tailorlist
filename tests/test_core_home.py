@@ -48,18 +48,40 @@ def test_summarize_empty_collection():
     assert (s.total, s.n_raw, s.total_dupes) == (0, 0, 0)
 
 
-def test_summarize_dupes_cross_and_intra():
+def test_summarize_legacy_session_without_fetch_stats():
     en = [{"id": "1"}, {"id": "1"}, {"id": "2"}]            # one cross-playlist repeat
     sk = [{"id": "2"}, {"id": "3"}]                          # id 2 also enriched
     fa = [{"id": "3"}, {}]                                   # id-less record ignored in uniques
     s = H.summarize_collection(en, sk, fa, [{"track_count": 10}, {}])
     assert (s.n_unique_with_af, s.n_unique_without_af, s.total) == (2, 1, 3)
-    assert s.n_raw == 7 and s.cross_dupes == 4 and s.intra_dupes == 3 and s.total_dupes == 7
+    # no fetch stats: every raw repeat is cross, the gap to Spotify's count is unavailable
+    assert s.n_raw == 7 and s.cross_dupes == 4 and s.intra_dupes == 0 and s.total_dupes == 4
+    assert s.unavailable == 3
+
+
+def test_summarize_with_fetch_stats_separates_the_three_kinds():
+    # A: 10 on Spotify, 2 local files, "a" saved twice -> 8 fetched, 7 unique
+    # B: 3 on Spotify, all fetched, "a" also in A        -> 3 fetched, 3 unique
+    en = [{"id": i} for i in ["a", "a", "b", "c", "d", "e", "f", "a", "x"]]
+    sk = [{"id": "g"}, {"id": "y"}]
+    pls = [{"track_count": 10, "n_fetched": 8, "n_unique": 7},
+           {"track_count": 3, "n_fetched": 3, "n_unique": 3}]
+    s = H.summarize_collection(en, sk, [], pls)
+    assert s.total == 9                     # a b c d e f g x y
+    assert (s.unavailable, s.intra_dupes, s.cross_dupes) == (2, 1, 1)
+    assert s.total + s.total_dupes + s.unavailable == 13   # Spotify's count, fully explained
+
+
+def test_summarize_mixed_stats_falls_back_to_legacy():
+    s = H.summarize_collection([{"id": "1"}], [], [],
+                               [{"track_count": 2, "n_fetched": 1, "n_unique": 1},
+                                {"track_count": 1}])
+    assert (s.unavailable, s.intra_dupes, s.cross_dupes) == (2, 0, 0)
 
 
 def test_summarize_never_negative():
     s = H.summarize_collection([{"id": "1"}], [], [], [{"track_count": 0}])
-    assert s.cross_dupes == 0 and s.intra_dupes == 0
+    assert s.cross_dupes == 0 and s.intra_dupes == 0 and s.unavailable == 0
 
 
 def test_duplicate_note_and_missing_note():
@@ -68,6 +90,9 @@ def test_duplicate_note_and_missing_note():
     assert H.duplicate_note(0, 1) == "1 duplicate(s) not counted (1 within same playlist)"
     assert H.duplicate_note(2, 1) == \
         "3 duplicate(s) not counted (2 across playlists, 1 within same playlist)"
+    assert H.duplicate_note(0, 0, 4) == "4 unavailable on Spotify"
+    assert H.duplicate_note(2, 0, 4) == \
+        "2 duplicate(s) not counted (2 across playlists) · 4 unavailable on Spotify"
     assert H.missing_features_note(0, 0) == ""
     assert H.missing_features_note(2, 1) == " · 3 without audio features"
 

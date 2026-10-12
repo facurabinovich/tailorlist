@@ -53,6 +53,16 @@ def track_key_id(track: dict) -> str | None:
     return track.get("id") or track.get("track_id")
 
 
+def playlist_fetch_stats(tracks: list[dict]) -> dict[str, int]:
+    """Counts kept on each playlist at fetch time, for the duplicate accounting on Home.
+
+    ``n_fetched``: tracks Spotify returned with an id (local files and unavailable tracks
+    come back without one and are dropped by the fetch). ``n_unique``: distinct ids among
+    them, so ``n_fetched - n_unique`` are repeats inside the playlist.
+    """
+    return {"n_fetched": len(tracks), "n_unique": len({t["id"] for t in tracks})}
+
+
 def pending_tracks(all_tracks: list[dict], enriched: list[dict], skipped: list[dict]) -> list[dict]:
     """Tracks of this run that still need enriching, order kept.
 

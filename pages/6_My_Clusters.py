@@ -16,6 +16,7 @@ from core.clustering import (
     verbose_description as _verbose_description,
     best_k as _best_k,
 )
+from core.home import summarize_collection
 from core.grouping import (
     group_by_category as run_category_grouping,
     group_by_specific_genres as run_specific_genre_grouping,
@@ -182,14 +183,16 @@ _df_all_full = (
     pd.concat([df_all, _yc_ne], ignore_index=True).drop_duplicates(subset="track_id")
     if not _yc_ne.empty else df_all
 )
-# Total cross-playlist duplicates = raw processed entries minus unique real track_ids
 _n_unique_all = _df_all_full["track_id"].nunique()
-_yc_cross_dupes_total = max(0, (len(st.session_state.get("uc_enriched", [])) +
-                                len(st.session_state.get("uc_skipped", [])) +
-                                len(st.session_state.get("uc_failed", []))) - _n_unique_all)
-# Keep per-pool counts for the unmatched note
-_yc_enriched_cross_dupes   = max(0, len(st.session_state.get("uc_enriched", [])) - df_all["track_id"].nunique())
-_yc_unenriched_cross_dupes = max(0, _yc_cross_dupes_total - _yc_enriched_cross_dupes)
+# Duplicate / unavailable accounting shared with Home (core.home.summarize_collection)
+_coll_sum = summarize_collection(
+    st.session_state.get("uc_enriched", []),
+    st.session_state.get("uc_skipped", []),
+    st.session_state.get("uc_failed", []),
+    st.session_state.get("uc_playlists", []),
+)
+_yc_cross_dupes_total = _coll_sum.cross_dupes
+_intra_dupes          = _coll_sum.intra_dupes
 
 # Compute active (non-done) pools for filter options
 _done_set_for_opts = st.session_state.get("done_tracks", set())
@@ -249,7 +252,6 @@ hr(top=16, bottom=20)
 # ════════════════════════════════════════════════════════════════════════════
 # Active collection banner
 # ════════════════════════════════════════════════════════════════════════════
-_intra_dupes = 0  # intra-playlist duplicates dropped by enrichment pipeline
 uc_enriched = st.session_state.get("uc_enriched", [])
 n_with_features = len(uc_enriched)
 n_missing = (
@@ -259,12 +261,9 @@ n_missing = (
 n_total = n_with_features + n_missing
 n_playlists = df_all["playlist_name"].nunique() if not df_all.empty else 0
 
-# Total raw Spotify entries (sum of playlist track_counts) — may exceed n_total
-# when a track appears twice in the same playlist (intra-playlist duplicate),
-# which the enrichment pipeline deduplicates silently.
+# Total raw Spotify entries (sum of playlist track_counts)
 _uc_playlists = st.session_state.get("uc_playlists", [])
 _spotify_total = sum(pl.get("track_count", 0) for pl in _uc_playlists)
-_intra_dupes = max(0, _spotify_total - n_total)
 
 _n_unique_enriched    = df_all["track_id"].nunique()
 _n_unique_unenriched  = _n_unique_all - _n_unique_enriched
@@ -280,6 +279,8 @@ _dupe_note = (
     f" · {_total_banner_dupes} duplicate(s) not counted ({' · '.join(_dupe_parts)})"
     if _dupe_parts else ""
 )
+if _coll_sum.unavailable > 0:
+    _dupe_note += f" · {_coll_sum.unavailable} unavailable on Spotify (local files or removed tracks)"
 
 if n_missing > 0:
     st.warning(

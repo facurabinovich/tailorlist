@@ -170,3 +170,8 @@ def test_init_run_state_resets_skipped_failed_once(state):
     state["uc_failed"] = [3]
     init_run_state()
     assert state["uc_failed"] == [3]
+
+
+def test_playlist_fetch_stats():
+    assert E.playlist_fetch_stats([_t(1), _t(2), _t(1)]) == {"n_fetched": 3, "n_unique": 2}
+    assert E.playlist_fetch_stats([]) == {"n_fetched": 0, "n_unique": 0}
