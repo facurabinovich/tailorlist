@@ -134,6 +134,24 @@ hacer la revisión final.
   distancias iguales, `with_similarity_pct` deja todo vacío. Top genres de Detail
   cuenta tags por fila y el de Overview tracks únicos por substring (definiciones
   distintas). Relevante para las tools.
+- **H16 (T21):** Artist/Album: si un artista o álbum elegible tiene `popularity_raw`
+  presente pero toda NaN, Highest/Lowest hace `int(NaN)` y da `ValueError` (se preservó).
+  La elegibilidad de artistas cuenta filas y el KPI cuenta tracks únicos: un artista
+  puede aparecer en el selector y mostrar `enough=False`. La normalización del tempo
+  del radar usa el min/max de la colección; la de Playlist Detail, 60–200 BPM fijos.
+- **H17 (T22):** el espejo de duplicados cruzados de `test_playlist_comparison.py`
+  detectaba por nombre y artista; el page usa Spotify ID ("across or within
+  playlists"). Se reescribió sobre registros crudos. `playlist_meta([])` da un frame
+  vacío con el que la sección Size fallaría (no se llega: sin colección la página se
+  corta antes). El page tenía una tabla de duración por playlist sin uso: queda como
+  `core.comparison.duration_by_playlist` para las tools.
+- **H18 (T23):** Audio DNA: `format_extreme_value` muestra "< 0.001" para valores de
+  ~0.00005–0.00015, y `extreme_tracks` devuelve filas NaN (tarjetas "nan") si una
+  feature tiene menos de n valores. Se preservó. `_BASE_LAYOUT` sigue duplicado en
+  Playlist Detail y Comparison, y hay variantes inline en Overview y clusters.
+- **H19 (T25):** `playlist_set_key` usa `hash()`, que cambia por proceso: el backfill
+  de la fila `enrichment_start` solo funciona dentro del mismo proceso. `confirm_estimate`
+  cuenta un registro enriquecido sin id como "ya enriquecido". Se preservó (con test).
 - **H10:** los tests espejo de My Clusters (`_track_matches_families` y
   `_preview_filter`) se habían desviado del código de producción. Probaban el
   comportamiento anterior al cambio deliberado del 2026-05-20 ("los tracks sin

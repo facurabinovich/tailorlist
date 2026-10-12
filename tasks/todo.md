@@ -1,6 +1,6 @@
 # Tareas: refactor de arquitectura
 
-> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Fase 3b completa (2026-10-12, Checkpoint 3b). Fase 4: T19–T20 hechas; sigue **T21 Artist/Album**. Suite: 738 tests, ~1–3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H9, H11–H13, H15 (H8 resuelto en R2).
+> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Fase 3b completa (2026-10-12, Checkpoint 3b). Fase 4 completa (Checkpoint 4, 2026-10-12); sigue la **Fase 5** (T28: shims y la decisión sobre `pipeline/`). Suite: 960 tests, ~1–3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H9, H11–H13, H15–H19 (H8 resuelto en R2).
 
 Plan: [`plan.md`](plan.md) · Spec: [`SPEC.md`](../SPEC.md)
 
@@ -186,12 +186,16 @@ página; si una queda por encima, se justifica en el commit.
   - Hecho (2026-10-12): lógica a `core/overview.py` (KPIs, perfil de escucha con `current_year` como parámetro, rankings, distribuciones, timeline y drill-downs; funciones puras con dataclasses). La página pasa de 761 a 591 líneas: quedan ~150 de HTML, ~170 de 5 figuras plotly y ~120 de secciones de clic, que dependen de muchas globales. `tests/test_overview.py` importa el código real (su copia del timeline había divergido, H-T19-1) y se suma `tests/test_core_overview.py` (40 tests). Equivalencia vieja/nueva en 119 valores sobre `dev_collection.json`. App real: las 9 páginas idénticas al Checkpoint 3b. Hallazgos H11–H13. Suite: 660 en ambos órdenes.
 - [x] **T20: Playlist Detail** · M
   - Hecho (2026-10-12): lógica a `core/playlist_detail.py`, y duplicados exactos y versiones a `core/duplicates.py` (con `include_playlists` para que T22 lo reuse; misma definición de "versión" que Comparison, y en duplicados exactos difieren alcance, columnas y orden). Página: 897 → 749 líneas (~400 son figuras plotly y tarjetas HTML propias de la página). Tests espejo reemplazados por imports (H14), más `test_core_playlist_detail.py` (35) y `test_core_duplicates.py` (15). Equivalencia: 37 combinaciones de playlist/variante × 20 salidas. App real: las 6 playlists con texto idéntico al de HEAD (`qa-tools/detail_all.py`). Suite: 738 en ambos órdenes.
-- [ ] **T21: Artist/Album** (más `_album_goto`) · M
-- [ ] **T22: Playlist Comparison** (lógica de duplicados exactos y versiones distintas a `core/`) · M
-- [ ] **T23: Audio DNA** (layout y colores a `ui/charts.py`) · M
+- [x] **T21: Artist/Album** (más `_album_goto`) · M
+  - Hecho (2026-10-12): `core/artist_album.py`. Página: 878 → 660 líneas. `_album_goto` es solo un `switch_page`: sin cambios. Equivalencia: 34 selecciones × 7 variantes de datos. Hallazgo H16.
+- [x] **T22: Playlist Comparison** (lógica de duplicados exactos y versiones distintas a `core/`) · M
+  - Hecho (2026-10-12): `core/comparison.py`, sobre `core/duplicates.py` (se le agregó `format_playlist_counts`). Página: 713 → 603 líneas. Equivalencia: 264 chequeos (colección, cada playlist, 15 pares y variantes), tablas de duplicados con su orden. Hallazgo H17.
+- [x] **T23: Audio DNA** (layout y colores a `ui/charts.py`) · M
+  - Hecho (2026-10-12): `core/audio_dna.py`, `ui/charts.py` y `core.formatting.short_name`. Página: 499 → 425 líneas. Equivalencia: JSON de las figuras plotly y HTML en 40 corridas AppTest, vieja contra nueva. Hallazgo H18.
 - [x] **T24: Glossary y Contact** · S
   - Hecho (2026-10-12): los términos del glosario y la búsqueda pasan a `core/glossary.py` (`GLOSSARY_TERMS`, `search_terms`, `group_by_section`; base de una tool para explicar términos). Glossary: 326 → 65 líneas. Contact no tiene lógica: sin cambios. App real: vista por defecto y 3 búsquedas idénticas a HEAD (`qa-tools/glossary_search.py`).
-- [ ] **T25: Home y Enrich** (flujo YC: playlists en la URL, recuperación de sid, ETA) · M
+- [x] **T25: Home y Enrich** (flujo YC: playlists en la URL, recuperación de sid, ETA) · M
+  - Hecho (2026-10-12): `core/home.py` y `core/enrichment.py` (puros), `app_state/home.py` y `app_state/enrichment.py` (sesión). Home y la nav comparten `needs_restore` y `apply_restored_session`; sus diferencias (touch, banner de vencida, manejo de excepciones) quedan en cada uno. Home 797 → 598 líneas, Enrich 457 → 236. Equivalencia: funciones puras sobre la colección y 2000 entradas aleatorias, y una corrida AppTest de Enrich vieja contra nueva con el mismo estado final. Hallazgo H19.
 - [~] ~~**T26: My Clusters (render)**~~: cancelada por el pivot. El agente reemplaza este flujo; su lógica ya se extrae en T15–T18.
 - [~] ~~**T27: Cluster Results (render)**~~: cancelada por el pivot.
 
@@ -200,7 +204,7 @@ página; si una queda por encima, se justifica en el commit.
   - Verify: suite, smoke test y recorrido real de esa página en FC y YC.
 
 ### ✅ Checkpoint 4
-- [ ] Suite verde y recorrido real completo de todas las páginas.
+- [x] (2026-10-12) Suite: 960 en ambos órdenes. App real, rama integrada: las 9 páginas tienen texto y capturas idénticos al Checkpoint 3b; las 6 playlists de Detail son idénticas a T20; los 11 pasos de los flujos de clustering son idénticos a la referencia; Glossary (vista por defecto y 3 búsquedas) es idéntico a HEAD. Sin excepciones ni tracebacks. T21–T25 se hicieron en paralelo, en worktrees, y se integraron con cherry-pick sin conflictos.
 
 ---
 
