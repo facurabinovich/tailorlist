@@ -3,7 +3,15 @@ import plotly.graph_objects as go
 import re
 import pandas as pd
 from app_state.collection import get_all_tracks
+import datetime
 from core.formatting import fmt_duration
+from core.overview import (
+    POPULARITY_BIN_SIZE, additions_timeline, compute_kpis, compute_listening_profile,
+    dedupe_tracks, decade_distribution, find_oldest_newest, genre_track_counts, has_popularity,
+    min_tracks_threshold, playlist_track_counts, popularity_bin_bounds, top_albums, top_artists_by_tracks,
+    top_genres, top_popular_artists, tracks_for_artist, tracks_for_decade, tracks_for_genre,
+    tracks_for_month, tracks_for_popularity_range, untagged_tracks_summary,
+)
 from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
 from ui.nav import inject_sidebar_nav
 
@@ -23,104 +31,35 @@ if "album_name" not in df.columns:
     st.cache_data.clear()
     st.rerun()
 
-deduped = df.drop_duplicates(subset="track_id").copy()
+deduped = dedupe_tracks(df)
 
-# Tracks per playlist
-counts = (
-    df.groupby("playlist_name")
-    .size()
-    .reset_index(name="track_count")
-    .sort_values("track_count", ascending=False)
-)
+counts = playlist_track_counts(df)
+top_artists = top_artists_by_tracks(df)
+min_t = min_tracks_threshold(len(deduped))  # dynamic threshold for the popular-artists ranking
+top_popular_artists_df = top_popular_artists(df)
+top_albums_df = top_albums(df)
+timeline = additions_timeline(df)
 
-# Top 20 artists by unique track count
-top_artists = (
-    df.groupby("artist_name")["track_id"]
-    .nunique()
-    .reset_index(name="track_count")
-    .sort_values("track_count", ascending=False)
-    .head(20)
-)
+kpis = compute_kpis(df)
+total_tracks   = kpis.total_tracks
+total_artists  = kpis.total_artists
+total_playlist = kpis.total_playlists
+avg_popularity = kpis.avg_popularity
+decade_mode    = kpis.top_decade
+avg_duration   = kpis.avg_duration_min  # minutes
 
-# Dynamic threshold
-min_t = min(5, max(1, len(deduped) // 10))
+profile = compute_listening_profile(deduped, datetime.date.today().year)
+listening_age = profile.listening_age if profile else None
+median_year   = profile.median_year if profile else None
+est_birth     = profile.est_birth if profile else None
 
-# Top 5 artists by avg popularity (min_t unique tracks required)
-top_popular_artists = pd.DataFrame()
-if "popularity_raw" in df.columns:
-    top_popular_artists = (
-        df.groupby("artist_name")
-        .agg(track_count=("track_id", "nunique"), avg_popularity=("popularity_raw", "mean"))
-        .query(f"track_count >= {min_t}")
-        .sort_values("avg_popularity", ascending=False)
-        .head(20)
-        .reset_index()
-    )
-
-# Top 5 albums by tracks saved
-top_albums = (
-    df.groupby(["album_name", "artist_name"])
-    .agg(track_count=("track_id", "nunique"), avg_popularity=("popularity_raw", "mean"))
-    .sort_values(["track_count", "avg_popularity"], ascending=False)
-    .head(20)
-    .reset_index()
-) if ("album_name" in df.columns and "popularity_raw" in df.columns) else pd.DataFrame()
-
-# Additions timeline
-timeline = pd.DataFrame()
-if "added_at" in df.columns and df["added_at"].notna().any():
-    _df = df.copy()
-    _df["added_at"] = pd.to_datetime(_df["added_at"], errors="coerce")
-    timeline = (
-        _df.dropna(subset=["added_at"])
-        .assign(year_month=lambda x: x["added_at"].dt.strftime("%Y-%m"))
-        .drop_duplicates(subset=["track_id", "year_month"])
-        .groupby("year_month")
-        .size()
-        .reset_index(name="tracks_added")
-        .sort_values("year_month")
-    )
-
-# KPIs
-total_tracks   = len(deduped)
-total_artists  = df["artist_name"].nunique()
-total_playlist = df["playlist_name"].nunique()
-avg_popularity = deduped["popularity_raw"].mean() if "popularity_raw" in deduped.columns else None
-decade_mode    = int(deduped["decade"].mode()[0]) if "decade" in deduped.columns and deduped["decade"].notna().any() else None
-
-# duration_raw: Your Collection = milliseconds
-avg_duration = None
-if "duration_raw" in deduped.columns:
-    raw = deduped["duration_raw"].mean()
-    if pd.notna(raw):
-        avg_duration = raw / 60000
-
-import datetime
-listening_age = None
-median_year   = None
-est_birth     = None
-if "release_year" in deduped.columns and deduped["release_year"].notna().any():
-    median_year   = int(deduped["release_year"].dropna().median())
-    est_birth     = median_year - 16
-    listening_age = datetime.date.today().year - est_birth
-
-oldest_year = newest_year = span = None
-
-# Oldest & newest track
-oldest_track = newest_track = None
-if "release_year" in deduped.columns and deduped["release_year"].notna().any():
-    valid = deduped.dropna(subset=["release_year"]).copy()
-    valid["release_year"] = valid["release_year"].astype(int)
-    oldest_track = valid.loc[valid["release_year"].idxmin()]
-    newest_track = valid.loc[valid["release_year"].idxmax()]
-    oldest_year  = int(valid["release_year"].min())
-    newest_year  = int(valid["release_year"].max())
-    span         = newest_year - oldest_year
-
-
+oldest_newest = find_oldest_newest(deduped)
+oldest_track = oldest_newest.oldest if oldest_newest else None
+newest_track = oldest_newest.newest if oldest_newest else None
+span         = oldest_newest.span if oldest_newest else None
 
 MEDALS   = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
-BIN_SIZE = 5  # popularity histogram bin width — must match xbins below
+BIN_SIZE = POPULARITY_BIN_SIZE  # popularity histogram bin width — must match xbins below
 
 
 def kpi_card(icon: str, label: str, value: str, subtitle: str = "") -> str:
@@ -322,43 +261,26 @@ selected_artist = st.plotly_chart(fig_artists, use_container_width=True, on_sele
 
 if selected_artist and selected_artist.selection and selected_artist.selection.points:
     artist_name = selected_artist.selection.points[0]["y"]
-    artist_tracks = (
-        deduped[deduped["artist_name"] == artist_name]
-        [[c for c in ["track_name", "playlist_name", "popularity_raw", "release_year"] if c in deduped.columns]]
-        .copy()
-        .sort_values("popularity_raw", ascending=False)
-    )
-    if "release_year" in artist_tracks.columns:
-        artist_tracks["release_year"] = artist_tracks["release_year"].fillna(0).astype(int)
-    artist_tracks = artist_tracks.rename(columns={
-        "track_name": "Track", "playlist_name": "Playlist",
-        "popularity_raw": "Popularity", "release_year": "Year",
-    })
+    artist_tracks = tracks_for_artist(deduped, artist_name)
     st.markdown(
         f"<p style='color:#1DB954;font-weight:700;font-size:1rem;margin-bottom:4px;'>"
         f"🎤 {len(artist_tracks)} tracks — {artist_name}</p>",
         unsafe_allow_html=True,
     )
-    st.dataframe(artist_tracks.reset_index(drop=True), use_container_width=True, hide_index=True)
+    st.dataframe(artist_tracks, use_container_width=True, hide_index=True)
 
 st.markdown("<hr style='border-color:#333;margin-top:8px;margin-bottom:8px;'>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Section 3 — Collection by Decade
 # ---------------------------------------------------------------------------
-if "decade" in deduped.columns and deduped["decade"].notna().any():
+decade_counts = decade_distribution(deduped)
+if not decade_counts.empty:
     st.markdown("## Collection by Decade")
     st.markdown(
         "<p style='color:#B3B3B3;margin-top:-8px;'>Click a bar to see the tracks in that range.</p>",
         unsafe_allow_html=True,
     )
-
-    decade_counts = (
-        deduped["decade"].dropna().astype(int)
-        .value_counts().sort_index().reset_index()
-    )
-    decade_counts.columns = ["decade", "count"]
-    decade_counts["decade_label"] = decade_counts["decade"].astype(str) + "s"
 
     era_colors = {
         1950: "#0d3320", 1960: "#0f3d26", 1970: "#11472c",
@@ -387,31 +309,20 @@ if "decade" in deduped.columns and deduped["decade"].notna().any():
     if selected_decade and selected_decade.selection and selected_decade.selection.points:
         decade_label = selected_decade.selection.points[0]["x"]  # e.g. "1990s"
         decade_val   = int(decade_label.replace("s", ""))
-        decade_tracks = (
-            deduped[deduped["decade"].astype("Int64") == decade_val]
-            [[c for c in ["track_name", "artist_display", "playlist_name", "popularity_raw", "release_year"] if c in deduped.columns]]
-            .copy()
-            .sort_values("popularity_raw", ascending=False)
-        )
-        if "release_year" in decade_tracks.columns:
-            decade_tracks["release_year"] = decade_tracks["release_year"].fillna(0).astype(int)
-        decade_tracks = decade_tracks.rename(columns={
-            "track_name": "Track", "artist_display": "Artist",
-            "playlist_name": "Playlist", "popularity_raw": "Popularity", "release_year": "Year",
-        })
+        decade_tracks = tracks_for_decade(deduped, decade_val)
         st.markdown(
             f"<p style='color:#1DB954;font-weight:700;font-size:1rem;margin-bottom:4px;'>"
             f"📅 {len(decade_tracks)} tracks — {decade_label}</p>",
             unsafe_allow_html=True,
         )
-        st.dataframe(decade_tracks.reset_index(drop=True), use_container_width=True, hide_index=True)
+        st.dataframe(decade_tracks, use_container_width=True, hide_index=True)
 
     st.markdown("<hr style='border-color:#333;margin-top:8px;margin-bottom:8px;'>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Section 4 — Popularity Distribution (interactive click)
 # ---------------------------------------------------------------------------
-if "popularity_raw" in deduped.columns and deduped["popularity_raw"].notna().any():
+if has_popularity(deduped):
     st.markdown("## Popularity Distribution")
     st.markdown(
         "<p style='color:#B3B3B3;margin-top:-8px;'>Click a bar to see the tracks in that range.</p>",
@@ -450,38 +361,15 @@ if "popularity_raw" in deduped.columns and deduped["popularity_raw"].notna().any
         x_vals = [p["x"] for p in points]
 
         # p["x"] is bin center — snap to left edge via floor division
-        bin_min = (min(x_vals) // BIN_SIZE) * BIN_SIZE
-        bin_max = bin_min + BIN_SIZE
+        bin_min, bin_max = popularity_bin_bounds(x_vals, BIN_SIZE)
 
-        cols_show = [
-            c for c in ["track_name", "artist_display", "playlist_name", "popularity_raw", "release_year"]
-            if c in deduped.columns
-        ]
-        bin_tracks = (
-            deduped[
-                (deduped["popularity_raw"] >= bin_min) &
-                (deduped["popularity_raw"] <  bin_max)
-            ]
-            [cols_show]
-            .copy()
-            .sort_values("popularity_raw", ascending=False)
-        )
-
-        if "release_year" in bin_tracks.columns:
-            bin_tracks["release_year"] = bin_tracks["release_year"].fillna(0).astype(int)
-        bin_tracks = bin_tracks.rename(columns={
-            "track_name":     "Track",
-            "artist_display": "Artist",
-            "playlist_name":  "Playlist",
-            "popularity_raw": "Popularity",
-            "release_year":   "Year",
-        })
+        bin_tracks = tracks_for_popularity_range(deduped, bin_min, bin_max)
         st.markdown(
             f"<p style='color:#1DB954;font-weight:700;font-size:1rem;margin-bottom:4px;'>"
             f"🎯 {len(bin_tracks)} tracks — popularity {int(bin_min)}–{int(bin_max - 1)}</p>",
             unsafe_allow_html=True,
         )
-        st.dataframe(bin_tracks.reset_index(drop=True), use_container_width=True, hide_index=True)
+        st.dataframe(bin_tracks, use_container_width=True, hide_index=True)
 
     st.markdown("<hr style='border-color:#333;margin-top:8px;margin-bottom:8px;'>", unsafe_allow_html=True)
 
@@ -498,9 +386,9 @@ with col_pop_artists:
         unsafe_allow_html=True,
     )
     show_all_artists = st.session_state.get("show_all_artists", False)
-    artists_to_show = top_popular_artists.head(20) if show_all_artists else top_popular_artists.head(5)
+    artists_to_show = top_popular_artists_df.head(20) if show_all_artists else top_popular_artists_df.head(5)
 
-    if not top_popular_artists.empty:
+    if not top_popular_artists_df.empty:
         for rank, (_, row) in enumerate(artists_to_show.iterrows()):
             pop = round(row["avg_popularity"], 1)
             st.markdown(ranking_card(
@@ -512,7 +400,7 @@ with col_pop_artists:
                 footer   = f"{int(row['track_count'])} tracks",
             ), unsafe_allow_html=True)
 
-        if len(top_popular_artists) > 5:
+        if len(top_popular_artists_df) > 5:
             if st.button("Show top 20" if not show_all_artists else "Show less", key="toggle_artists"):
                 st.session_state["show_all_artists"] = not show_all_artists
                 st.rerun()
@@ -527,9 +415,9 @@ with col_albums:
         unsafe_allow_html=True,
     )
     show_all_albums = st.session_state.get("show_all_albums", False)
-    albums_to_show = top_albums.head(20) if show_all_albums else top_albums.head(5)
+    albums_to_show = top_albums_df.head(20) if show_all_albums else top_albums_df.head(5)
 
-    if not top_albums.empty:
+    if not top_albums_df.empty:
         for rank, (_, row) in enumerate(albums_to_show.iterrows()):
             pop = round(row["avg_popularity"], 1)
             st.markdown(ranking_card(
@@ -541,7 +429,7 @@ with col_albums:
                 footer   = f"{int(row['track_count'])} tracks saved",
             ), unsafe_allow_html=True)
 
-        if len(top_albums) > 5:
+        if len(top_albums_df) > 5:
             if st.button("Show top 20" if not show_all_albums else "Show less", key="toggle_albums"):
                 st.session_state["show_all_albums"] = not show_all_albums
                 st.rerun()
@@ -558,38 +446,17 @@ if "artist_genres" in df.columns:
         unsafe_allow_html=True,
     )
 
-    genres_exploded = (
-        df[df["artist_genres"].notna() & (df["artist_genres"] != "")]
-        .assign(genre=lambda x: x["artist_genres"].str.split(","))
-        .explode("genre")
-        .assign(genre=lambda x: x["genre"].str.strip())
-        .query("genre != ''")
-    )
-
-    all_genres = genres_exploded["genre"].unique().tolist()
-    genre_counts = []
-    for g in all_genres:
-        count = df[
-            df["artist_genres"].notna() &
-            df["artist_genres"].str.contains(g, case=False, regex=False)
-        ]["track_id"].nunique()
-        genre_counts.append({"genre": g, "track_count": count})
-
-    top_genres = (
-        pd.DataFrame(genre_counts)
-        .sort_values("track_count", ascending=False)
-        .head(30)
-        .reset_index(drop=True)
-    )
+    genre_counts = genre_track_counts(df)
+    top_genres_df = top_genres(genre_counts)
 
     fig_genres = go.Figure(go.Treemap(
-        labels=top_genres["genre"],
-        parents=[""] * len(top_genres),
-        values=top_genres["track_count"],
+        labels=top_genres_df["genre"],
+        parents=[""] * len(top_genres_df),
+        values=top_genres_df["track_count"],
         texttemplate="<b>%{label}</b><br>%{value}",
         hovertemplate="<b>%{label}</b><br>%{value} tracks<extra></extra>",
         marker=dict(
-            colors=top_genres["track_count"],
+            colors=top_genres_df["track_count"],
             colorscale=[[0, "#0f3d26"], [0.4, "#145e2a"], [0.7, "#1DB954"], [1, "#4dcb76"]],
             showscale=False,
             line=dict(width=2, color="#121212"),
@@ -613,12 +480,8 @@ if "artist_genres" in df.columns:
     )
 
     # Tracks without genre data
-    no_genre = deduped[
-        deduped["artist_genres"].isna() | (deduped["artist_genres"].str.strip() == "")
-    ]
-    no_genre_count = len(no_genre)
+    no_genre_count, pct = untagged_tracks_summary(deduped)
     if no_genre_count > 0:
-        pct = round(no_genre_count / len(deduped) * 100, 1)
         st.markdown(
             f"<p style='color:#B3B3B3;font-size:0.78rem;margin-top:4px;'>"
             f"⚠️ {no_genre_count} tracks ({pct}%) have no genre data from Spotify — "
@@ -634,7 +497,7 @@ if "artist_genres" in df.columns:
         unsafe_allow_html=True,
     )
 
-    genre_options = pd.DataFrame(genre_counts).sort_values("track_count", ascending=False)["genre"].tolist()
+    genre_options = genre_counts["genre"].tolist()
     chosen_genre = st.selectbox(
         "",
         genre_options,
@@ -646,24 +509,10 @@ if "artist_genres" in df.columns:
 
     if chosen_genre:
         # str.contains catches all sub-genres that include the chosen word
-        genre_tracks = (
-            deduped[
-                deduped["artist_genres"].notna() &
-                deduped["artist_genres"].str.contains(chosen_genre, case=False, regex=False)
-            ]
-            [[c for c in ["track_name", "artist_display", "playlist_name", "popularity_raw", "release_year"] if c in deduped.columns]]
-            .copy()
-            .sort_values("popularity_raw", ascending=False)
-        )
-        if "release_year" in genre_tracks.columns:
-            genre_tracks["release_year"] = genre_tracks["release_year"].fillna(0).astype(int)
-        genre_tracks = genre_tracks.rename(columns={
-            "track_name": "Track", "artist_display": "Artist",
-            "playlist_name": "Playlist", "popularity_raw": "Popularity", "release_year": "Year",
-        })
+        genre_tracks = tracks_for_genre(deduped, chosen_genre)
 
         # Count exact vs sub-genre matches for the overlap note
-        exact_count = top_genres.loc[top_genres["genre"] == chosen_genre, "track_count"]
+        exact_count = top_genres_df.loc[top_genres_df["genre"] == chosen_genre, "track_count"]
         exact_count = int(exact_count.values[0]) if not exact_count.empty else len(genre_tracks)
         total_count = len(genre_tracks)
         overlap_note = ""
@@ -675,7 +524,7 @@ if "artist_genres" in df.columns:
             f"🎸 {total_count} tracks — {chosen_genre}{overlap_note}</p>",
             unsafe_allow_html=True,
         )
-        st.dataframe(genre_tracks.reset_index(drop=True), use_container_width=True, hide_index=True)
+        st.dataframe(genre_tracks, use_container_width=True, hide_index=True)
 
     st.markdown("<hr style='border-color:#333;margin-top:8px;margin-bottom:8px;'>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
@@ -726,33 +575,14 @@ if not timeline.empty:
             clicked_x = selected_month.selection.points[0]["x"]
             clicked_ym = pd.to_datetime(clicked_x).strftime("%Y-%m")
 
-            _df_at = df.copy()
-            _df_at["added_at"] = pd.to_datetime(_df_at["added_at"], errors="coerce")
-            _df_at["_ym"] = _df_at["added_at"].dt.strftime("%Y-%m")
-            month_tracks = (
-                _df_at[_df_at["_ym"] == clicked_ym]
-                .drop_duplicates(subset="track_id")
-                [[c for c in ["track_name", "artist_display", "playlist_name", "popularity_raw", "release_year"] if c in _df_at.columns]]
-                .copy()
-                .sort_values("popularity_raw", ascending=False) if "popularity_raw" in _df_at.columns
-                else _df_at[_df_at["_ym"] == clicked_ym]
-                .drop_duplicates(subset="track_id")
-                [[c for c in ["track_name", "artist_display", "playlist_name", "release_year"] if c in _df_at.columns]]
-                .copy()
-            )
-            if "release_year" in month_tracks.columns:
-                month_tracks["release_year"] = month_tracks["release_year"].fillna(0).astype(int)
-            month_tracks = month_tracks.rename(columns={
-                "track_name": "Track", "artist_display": "Artist",
-                "playlist_name": "Playlist", "popularity_raw": "Popularity", "release_year": "Year",
-            })
+            month_tracks = tracks_for_month(df, clicked_ym)
             label = pd.to_datetime(clicked_ym).strftime("%B %Y")
             st.markdown(
                 f"<p style='color:#1DB954;font-weight:700;font-size:1rem;margin-bottom:4px;'>"
                 f"📅 {len(month_tracks)} tracks added in {label}</p>",
                 unsafe_allow_html=True,
             )
-            st.dataframe(month_tracks.reset_index(drop=True), use_container_width=True, hide_index=True)
+            st.dataframe(month_tracks, use_container_width=True, hide_index=True)
 else:
     st.markdown(
         "<p style='color:#B3B3B3;'>No timeline data available for this collection.</p>",

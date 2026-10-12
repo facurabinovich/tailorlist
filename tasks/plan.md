@@ -113,6 +113,16 @@ hacer la revisión final.
 - **H9:** `core/export.spotlistr_lines` falla con `AttributeError` si un track
   tiene `artists=None`, igual que el código original. Pendiente para la tool
   `export_playlist` en F1: no debería romperse por un dato faltante.
+- **H11 (T19):** el Top Genres de Overview crasheaba (`KeyError`) si existe
+  `artist_genres` pero ningún track tiene género. `core.overview.genre_track_counts`
+  devuelve ahora un frame vacío con columnas `genre`/`track_count`: único cambio de
+  comportamiento de T19 (un crash pasa a ser un treemap vacío), con test.
+- **H12 (T19):** los drill-downs de Overview por artista, década, popularidad y
+  género ordenan por `popularity_raw` sin guardia: sin esa columna, el clic da
+  `KeyError` (el de mes sí tiene guardia). Se preservó (`track_listing(strict_sort=True)`).
+  Relevante para las tools si reciben colecciones sin popularidad.
+- **H13 (T19):** con `popularity_raw` presente pero toda NaN, el KPI de popularidad
+  promedio muestra "nan". Se preservó.
 - **H10:** los tests espejo de My Clusters (`_track_matches_families` y
   `_preview_filter`) se habían desviado del código de producción. Probaban el
   comportamiento anterior al cambio deliberado del 2026-05-20 ("los tracks sin

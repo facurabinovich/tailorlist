@@ -1,6 +1,6 @@
 # Tareas: refactor de arquitectura
 
-> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Fase 3b completa (2026-10-12, Checkpoint 3b). Sigue la **Fase 4** (T19 Overview). Suite: 599 tests, ~1–3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H9 (H8 resuelto en R2).
+> **Para retomar (2026-10-11, fin de la sesión):** Fases 0–3 completas y verificadas en la app real (Checkpoints 0–3). Fase 3b completa (2026-10-12, Checkpoint 3b). Fase 4: T19 hecha; sigue **T20 Playlist Detail**. Suite: 660 tests, ~1–3 min. Hallazgos abiertos en `plan.md`: H2, H3, H7, H9, H11–H13 (H8 resuelto en R2).
 
 Plan: [`plan.md`](plan.md) · Spec: [`SPEC.md`](../SPEC.md)
 
@@ -182,7 +182,8 @@ lugar de copiarlo), HTML repetido a `ui/`, secciones en funciones `render_*`
 cuando no dependen de un montón de globales. La meta es ~500 líneas por
 página; si una queda por encima, se justifica en el commit.
 
-- [ ] **T19: Overview** · M
+- [x] **T19: Overview** · M
+  - Hecho (2026-10-12): lógica a `core/overview.py` (KPIs, perfil de escucha con `current_year` como parámetro, rankings, distribuciones, timeline y drill-downs; funciones puras con dataclasses). La página pasa de 761 a 591 líneas: quedan ~150 de HTML, ~170 de 5 figuras plotly y ~120 de secciones de clic, que dependen de muchas globales. `tests/test_overview.py` importa el código real (su copia del timeline había divergido, H-T19-1) y se suma `tests/test_core_overview.py` (40 tests). Equivalencia vieja/nueva en 119 valores sobre `dev_collection.json`. App real: las 9 páginas idénticas al Checkpoint 3b. Hallazgos H11–H13. Suite: 660 en ambos órdenes.
 - [ ] **T20: Playlist Detail** · M
 - [ ] **T21: Artist/Album** (más `_album_goto`) · M
 - [ ] **T22: Playlist Comparison** (lógica de duplicados exactos y versiones distintas a `core/`) · M

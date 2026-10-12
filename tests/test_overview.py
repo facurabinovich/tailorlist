@@ -12,113 +12,19 @@ from unittest.mock import MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
-# Helpers — mirrors the logic in 1_Overview.py so we can test it in isolation
-# without pulling in Streamlit at import time.
+# The computations under test live in core/overview.py (the page only renders them).
 # ---------------------------------------------------------------------------
 
 from core.formatting import fmt_duration
-
-
-def compute_kpis(deduped: pd.DataFrame, is_your_collection: bool = False):
-    """Replicate all KPI derivations from 1_Overview.py."""
-    total_tracks = len(deduped)
-    total_artists = deduped["artist_name"].nunique() if "artist_name" in deduped.columns else 0
-    total_playlists = deduped["playlist_name"].nunique() if "playlist_name" in deduped.columns else 0
-    avg_popularity = deduped["popularity_raw"].mean() if "popularity_raw" in deduped.columns else None
-    decade_mode = (
-        int(deduped["decade"].mode()[0])
-        if "decade" in deduped.columns and deduped["decade"].notna().any()
-        else None
-    )
-
-    avg_duration = None
-    if "duration_raw" in deduped.columns:
-        raw = deduped["duration_raw"].mean()
-        avg_duration = (raw / 60000) if is_your_collection else raw
-
-    return {
-        "total_tracks": total_tracks,
-        "total_artists": total_artists,
-        "total_playlists": total_playlists,
-        "avg_popularity": avg_popularity,
-        "decade_mode": decade_mode,
-        "avg_duration": avg_duration,
-    }
-
-
-def compute_oldest_newest(deduped: pd.DataFrame):
-    """Replicate oldest/newest/span logic from 1_Overview.py."""
-    if "release_year" not in deduped.columns or not deduped["release_year"].notna().any():
-        return None, None, None, None, None
-    valid = deduped.dropna(subset=["release_year"]).copy()
-    valid["release_year"] = valid["release_year"].astype(int)
-    oldest = valid.loc[valid["release_year"].idxmin()]
-    newest = valid.loc[valid["release_year"].idxmax()]
-    oldest_year = int(valid["release_year"].min())
-    newest_year = int(valid["release_year"].max())
-    span = newest_year - oldest_year
-    return oldest, newest, oldest_year, newest_year, span
-
-
-def compute_listening_age(deduped: pd.DataFrame, current_year: int = 2026):
-    """Replicate listening_age / median_year / est_birth from 1_Overview.py."""
-    if "release_year" not in deduped.columns or not deduped["release_year"].notna().any():
-        return None, None, None
-    median_year = int(deduped["release_year"].dropna().median())
-    est_birth = median_year - 16
-    listening_age = current_year - est_birth
-    return median_year, est_birth, listening_age
-
-
-def compute_top_artists(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    return (
-        df.groupby("artist_name")["track_id"]
-        .nunique()
-        .reset_index(name="track_count")
-        .sort_values("track_count", ascending=False)
-        .head(n)
-    )
-
-
-def compute_top_popular_artists(df: pd.DataFrame, deduped: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    if "popularity_raw" not in df.columns:
-        return pd.DataFrame()
-    min_t = min(5, max(1, len(deduped) // 10))
-    return (
-        df.groupby("artist_name")
-        .agg(track_count=("track_id", "nunique"), avg_popularity=("popularity_raw", "mean"))
-        .query(f"track_count >= {min_t}")
-        .sort_values("avg_popularity", ascending=False)
-        .head(n)
-        .reset_index()
-    )
-
-
-def compute_top_albums(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    if "album_name" not in df.columns or "popularity_raw" not in df.columns:
-        return pd.DataFrame()
-    return (
-        df.groupby(["album_name", "artist_name"])
-        .agg(track_count=("track_id", "nunique"), avg_popularity=("popularity_raw", "mean"))
-        .sort_values(["track_count", "avg_popularity"], ascending=False)
-        .head(n)
-        .reset_index()
-    )
-
-
-def compute_timeline(df: pd.DataFrame) -> pd.DataFrame:
-    if "added_at" not in df.columns or not df["added_at"].notna().any():
-        return pd.DataFrame()
-    _df = df.copy()
-    _df["added_at"] = pd.to_datetime(_df["added_at"], errors="coerce")
-    return (
-        _df.dropna(subset=["added_at"])
-        .assign(year_month=lambda x: x["added_at"].dt.strftime("%Y-%m"))
-        .groupby("year_month")
-        .size()
-        .reset_index(name="tracks_added")
-        .sort_values("year_month")
-    )
+from core.overview import (
+    additions_timeline as compute_timeline,
+    compute_kpis,
+    compute_listening_profile,
+    find_oldest_newest,
+    top_albums as compute_top_albums,
+    top_artists_by_tracks as compute_top_artists,
+    top_popular_artists as compute_top_popular_artists,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +44,7 @@ def sample_df():
         "popularity_raw":[80, 70, 60, 50, 40, 80],
         "release_year":  [1990, 2000, 1985, 2010, 2020, 1990],
         "decade":        [1990, 2000, 1980, 2010, 2020, 1990],
-        "duration_raw":  [200.0, 210.0, 195.0, 230.0, 180.0, 200.0],  # minutes (DB mode)
+        "duration_raw":  [200.0, 210.0, 195.0, 230.0, 180.0, 200.0],  # milliseconds (Your Collection)
         "added_at":      ["2024-01-15", "2024-01-20", "2024-03-05", "2024-03-10", "2024-05-01", "2024-01-15"],
         "artist_genres": ["rock", "rock", "pop", "pop", "jazz", "rock"],
     })
@@ -210,46 +116,49 @@ class TestKpiDerivations:
         # t1 appears twice across playlists — dedup should give 5 unique tracks
         deduped = sample_df.drop_duplicates(subset="track_id")
         kpis = compute_kpis(deduped)
-        assert kpis["total_tracks"] == 5
+        assert kpis.total_tracks == 5
 
     def test_total_artists(self, deduped):
         kpis = compute_kpis(deduped)
         # Artist X, Artist Y, Artist Z
-        assert kpis["total_artists"] == 3
+        assert kpis.total_artists == 3
 
     def test_total_playlists(self, sample_df, deduped):
         # PL1, PL2, PL3 — playlists counted from deduped too
         kpis = compute_kpis(deduped)
-        assert kpis["total_playlists"] == 3
+        assert kpis.total_playlists == 3
 
     def test_avg_popularity(self, deduped):
         kpis = compute_kpis(deduped)
         expected = deduped["popularity_raw"].mean()
-        assert kpis["avg_popularity"] == pytest.approx(expected)
+        assert kpis.avg_popularity == pytest.approx(expected)
 
     def test_decade_mode(self, deduped):
         kpis = compute_kpis(deduped)
         # Decades: 1990, 2000, 1980, 2010, 2020 — all unique, mode = first
-        assert kpis["decade_mode"] in [1990, 2000, 1980, 2010, 2020]
+        assert kpis.top_decade in [1990, 2000, 1980, 2010, 2020]
 
-    def test_avg_duration_db_mode(self, deduped):
-        kpis = compute_kpis(deduped, is_your_collection=False)
-        assert kpis["avg_duration"] == pytest.approx(deduped["duration_raw"].mean())
+    def test_avg_duration_ms_to_minutes(self, deduped):
+        # duration_raw is milliseconds; the KPI is in minutes (the old DB/FC-minutes branch is gone)
+        deduped = deduped.copy()
+        deduped["duration_raw"] = [180000.0, 240000.0, 210000.0, 210000.0, 210000.0]
+        kpis = compute_kpis(deduped)
+        assert kpis.avg_duration_min == pytest.approx(3.5)
 
     def test_avg_duration_yc_mode(self, deduped):
         # YC sends milliseconds — should be divided by 60_000
         deduped_ms = deduped.copy()
         deduped_ms["duration_raw"] = deduped_ms["duration_raw"] * 60000
-        kpis = compute_kpis(deduped_ms, is_your_collection=True)
+        kpis = compute_kpis(deduped_ms)
         expected = deduped["duration_raw"].mean()
-        assert kpis["avg_duration"] == pytest.approx(expected)
+        assert kpis.avg_duration_min == pytest.approx(expected)
 
     def test_missing_optional_columns(self, minimal_df):
         deduped = minimal_df.drop_duplicates(subset="track_id")
         kpis = compute_kpis(deduped)
-        assert kpis["avg_popularity"] is None
-        assert kpis["decade_mode"] is None
-        assert kpis["avg_duration"] is None
+        assert kpis.avg_popularity is None
+        assert kpis.top_decade is None
+        assert kpis.avg_duration_min is None
 
 
 # ---------------------------------------------------------------------------
@@ -258,17 +167,18 @@ class TestKpiDerivations:
 
 class TestOldestNewest:
     def test_oldest_track_identified(self, deduped):
-        oldest, _, _, _, _ = compute_oldest_newest(deduped)
+        oldest = find_oldest_newest(deduped).oldest
         assert oldest["release_year"] == 1985
         assert oldest["track_name"] == "Song C"
 
     def test_newest_track_identified(self, deduped):
-        _, newest, _, _, _ = compute_oldest_newest(deduped)
+        newest = find_oldest_newest(deduped).newest
         assert newest["release_year"] == 2020
         assert newest["track_name"] == "Song E"
 
     def test_span_calculation(self, deduped):
-        _, _, oldest_year, newest_year, span = compute_oldest_newest(deduped)
+        res = find_oldest_newest(deduped)
+        oldest_year, newest_year, span = res.oldest_year, res.newest_year, res.span
         assert oldest_year == 1985
         assert newest_year == 2020
         assert span == 35
@@ -276,20 +186,18 @@ class TestOldestNewest:
     def test_nan_release_years_excluded(self, deduped):
         df_with_nan = deduped.copy()
         df_with_nan.loc[df_with_nan["track_id"] == "t3", "release_year"] = np.nan
-        oldest, newest, oldest_year, _, _ = compute_oldest_newest(df_with_nan)
+        oldest_year = find_oldest_newest(df_with_nan).oldest_year
         # t3 (1985) is now NaN — next oldest should be 1990
         assert oldest_year == 1990
 
     def test_no_release_year_column(self, minimal_df):
         deduped = minimal_df.drop_duplicates(subset="track_id")
-        result = compute_oldest_newest(deduped)
-        assert all(v is None for v in result)
+        assert find_oldest_newest(deduped) is None
 
     def test_all_nan_release_years(self, deduped):
         df_nan = deduped.copy()
         df_nan["release_year"] = np.nan
-        result = compute_oldest_newest(df_nan)
-        assert all(v is None for v in result)
+        assert find_oldest_newest(df_nan) is None
 
 
 # ---------------------------------------------------------------------------
@@ -299,21 +207,20 @@ class TestOldestNewest:
 class TestListeningAge:
     def test_median_year(self, deduped):
         # release_years: 1985, 1990, 2000, 2010, 2020 → median = 2000
-        median_year, _, _ = compute_listening_age(deduped, current_year=2026)
+        median_year = compute_listening_profile(deduped, current_year=2026).median_year
         assert median_year == 2000
 
     def test_est_birth(self, deduped):
-        _, est_birth, _ = compute_listening_age(deduped, current_year=2026)
+        est_birth = compute_listening_profile(deduped, current_year=2026).est_birth
         assert est_birth == 2000 - 16  # 1984
 
     def test_listening_age(self, deduped):
-        _, _, listening_age = compute_listening_age(deduped, current_year=2026)
+        listening_age = compute_listening_profile(deduped, current_year=2026).listening_age
         assert listening_age == 2026 - 1984  # 42
 
     def test_missing_column(self, minimal_df):
         deduped = minimal_df.drop_duplicates(subset="track_id")
-        result = compute_listening_age(deduped)
-        assert all(v is None for v in result)
+        assert compute_listening_profile(deduped, current_year=2026) is None
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +256,7 @@ class TestTopArtists:
 
 class TestTopPopularArtists:
     def test_sorted_by_avg_popularity_desc(self, sample_df, deduped):
-        top = compute_top_popular_artists(sample_df, deduped)
+        top = compute_top_popular_artists(sample_df)
         pops = top["avg_popularity"].tolist()
         assert pops == sorted(pops, reverse=True)
 
@@ -360,13 +267,13 @@ class TestTopPopularArtists:
         rows.append({"track_id": "t99", "artist_name": "Tiny Artist", "popularity_raw": 99})
         df = pd.DataFrame(rows)
         deduped = df.drop_duplicates(subset="track_id")
-        top = compute_top_popular_artists(df, deduped)
+        top = compute_top_popular_artists(df)
         # min_t = min(5, max(1, 51//10)) = 5 — Tiny Artist has 1 track, should be excluded
         assert "Tiny Artist" not in top["artist_name"].values
 
     def test_no_popularity_column(self, sample_df, deduped):
         df_no_pop = sample_df.drop(columns=["popularity_raw"])
-        top = compute_top_popular_artists(df_no_pop, deduped)
+        top = compute_top_popular_artists(df_no_pop)
         assert top.empty
 
 
@@ -406,10 +313,11 @@ class TestTimeline:
         tl = compute_timeline(sample_df)
         assert "year_month" in tl.columns
         assert "tracks_added" in tl.columns
-        # Jan 2024: 2 entries (t1 + t2 + duplicate t1 → 3 rows in sample_df with Jan dates)
+        # Jan 2024: t1 appears twice (two playlists) + t2. The real timeline counts a track once
+        # per month, so 2 (the old test mirror lacked the drop_duplicates and expected 3).
         jan = tl[tl["year_month"] == "2024-01"]
         assert not jan.empty
-        assert int(jan["tracks_added"].iloc[0]) == 3  # t1 twice + t2
+        assert int(jan["tracks_added"].iloc[0]) == 2  # t1 once + t2
 
     def test_nat_dates_excluded(self, sample_df):
         df = sample_df.copy()
