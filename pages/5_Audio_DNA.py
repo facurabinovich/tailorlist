@@ -11,30 +11,14 @@ Sections:
 
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 
 from app_state.collection import get_tracks
-from config import NORMALIZED_FEATURES, AUDIO_FEATURES
 from ui.theme import inject_global_css, spotify_icon_html, page_brand_html
 from ui.nav import inject_sidebar_nav, check_collection_mode
-
-# ── Layout base ────────────────────────────────────────────────────────────────
-_BL = dict(
-    plot_bgcolor="#121212",
-    paper_bgcolor="#121212",
-    font_color="#B3B3B3",
-    margin=dict(t=20, b=20, l=10, r=10),
-)
-
-def _layout(**overrides):
-    return {**_BL, **overrides}
-
-_PL_PALETTE = [
-    "#1DB954", "#E8534A", "#4A90D9", "#F5A623", "#B97FE8",
-    "#E8D44A", "#4AE8D4", "#E84A90", "#A8E84A", "#E8934A",
-    "#7B9EA8", "#C0392B", "#8E44AD", "#2ECC71",
-]
+from ui.charts import layout as _layout, playlist_color_map as _playlist_color_map, hex_to_rgb as _hex_to_rgb
+from core.formatting import short_name as _short_name
+from core import audio_dna as dna
 
 # ── Data ───────────────────────────────────────────────────────────────────────
 def get_data():
@@ -44,25 +28,9 @@ def get_data():
     return df
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
-def _playlist_color_map(playlists):
-    return {pl: _PL_PALETTE[i % len(_PL_PALETTE)] for i, pl in enumerate(sorted(playlists))}
+FEAT_LABELS = dna.FEATURE_LABELS
 
-def _short_name(name: str, max_len: int = 22) -> str:
-    return name if len(name) <= max_len else name[:max_len - 1] + "…"
-
-def _hex_to_rgb(hex_color: str):
-    h = hex_color.lstrip("#")
-    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-
-FEAT_LABELS = {
-    "energy": "Energy", "acousticness": "Acousticness", "valence": "Valence",
-    "danceability": "Danceability", "speechiness": "Speechiness",
-    "instrumentalness": "Instrumentalness", "liveness": "Liveness",
-    "loudness": "Loudness", "tempo": "Tempo",
-}
-
-RADAR_FEATS = ["energy", "acousticness", "valence", "danceability",
-               "speechiness", "instrumentalness", "liveness"]
+RADAR_FEATS = dna.RADAR_FEATURES
 
 # ── Boilerplate ────────────────────────────────────────────────────────────────
 inject_global_css()
@@ -91,12 +59,14 @@ playlists = sorted(df_all["playlist_name"].unique())
 pl_colors = _playlist_color_map(playlists)
 
 # Unique counts via set operations on Spotify track IDs
-_enriched_ids_dna = {t["id"] for t in st.session_state.get("uc_enriched", []) if t.get("id")}
-_unenriched_dna   = st.session_state.get("uc_skipped", []) + st.session_state.get("uc_failed", [])
-_unenriched_unique_dna = {t["id"] for t in _unenriched_dna if t.get("id")} - _enriched_ids_dna
-_n_unique_with_af  = len(_enriched_ids_dna)
-_n_unique_without_af = len(_unenriched_unique_dna)
-_n_unique_total    = _n_unique_with_af + _n_unique_without_af
+_enrich = dna.enrichment_stats(
+    st.session_state.get("uc_enriched", []),
+    st.session_state.get("uc_skipped", []),
+    st.session_state.get("uc_failed", []),
+)
+_n_unique_with_af  = _enrich.with_audio_features
+_n_unique_without_af = _enrich.without_audio_features
+_n_unique_total    = _enrich.total
 _n_pl = df_all["playlist_name"].nunique() if not df_all.empty else 0
 if _n_unique_without_af > 0:
     st.warning(
@@ -122,11 +92,11 @@ with st.expander("🎛️ Filter playlists", expanded=False):
     )
 
 # All sections use these two frames
-df_flt = df_all[df_all["playlist_name"].isin(selected_pl)]
-df     = df_flt.drop_duplicates(subset="track_id")
+_sel   = dna.select_playlists(df_all, selected_pl)
+df_flt = _sel.rows
+df     = _sel.unique
 
-_has_audio_data = any(f in df.columns and df[f].notna().any() for f in RADAR_FEATS)
-if not _has_audio_data:
+if not dna.has_audio_data(df):
     st.info(
         "Audio features aren't available for any of these tracks — "
         "none were found in the audio database during enrichment."
@@ -210,7 +180,7 @@ for pl in sorted(selected_pl):
     sub = df_mood[df_mood["playlist_name"] == pl]
     if sub.empty:
         continue
-    size = (sub["popularity_raw"].astype(float).fillna(0.0) / 100 * 8 + 3).tolist() if "popularity_raw" in sub.columns else [6] * len(sub)
+    size = dna.marker_sizes(sub)
     has_pop = "popularity_raw" in sub.columns
     customdata = sub[["track_name", "playlist_name", "artist_display", "popularity_raw"]].values if has_pop else sub[["track_name", "playlist_name", "artist_display"]].assign(popularity_raw="N/A").values
     fig_mood.add_trace(go.Scatter(
@@ -240,18 +210,14 @@ fig_mood.update_layout(**_layout(
 ))
 st.plotly_chart(fig_mood, width='stretch')
 
-q_data = {
-    "Happy 😄":     df_mood[(df_mood["valence"] >= 0.5) & (df_mood["energy"] >= 0.5)],
-    "Turbulent ⚡": df_mood[(df_mood["valence"] < 0.5)  & (df_mood["energy"] >= 0.5)],
-    "Peaceful 🌊":  df_mood[(df_mood["valence"] >= 0.5) & (df_mood["energy"] < 0.5)],
-    "Dark 🌑":      df_mood[(df_mood["valence"] < 0.5)  & (df_mood["energy"] < 0.5)],
-}
+_MOOD_EMOJI = {"Happy": "😄", "Turbulent": "⚡", "Peaceful": "🌊", "Dark": "🌑"}
 cols = st.columns(4)
-for col, (label, sub) in zip(cols, q_data.items()):
-    pct = len(sub) / len(df_mood) * 100 if len(df_mood) else 0
+for col, q in zip(cols, dna.mood_summary(df_mood)):
+    label = f"{q.name} {_MOOD_EMOJI[q.name]}"
+    pct = q.pct
     col.markdown(f"""
     <div style='background:#282828;border-radius:14px;padding:16px 18px;border:1px solid #333;text-align:center;'>
-      <div style='font-size:1.4rem;font-weight:700;color:#FFFFFF;'>{len(sub)}</div>
+      <div style='font-size:1.4rem;font-weight:700;color:#FFFFFF;'>{q.count}</div>
       <div style='font-size:0.78rem;color:#B3B3B3;margin-top:2px;'>{label}</div>
       <div style='font-size:0.72rem;color:#1DB954;margin-top:4px;'>{pct:.1f}% of tracks</div>
     </div>""", unsafe_allow_html=True)
@@ -265,7 +231,7 @@ st.markdown("## Global Fingerprint")
 st.markdown("<p style='color:#B3B3B3;margin-top:-8px;font-size:0.85rem;'>The average sonic profile of the selected playlists — 7 normalized audio features.</p>", unsafe_allow_html=True)
 
 radar_labels  = [FEAT_LABELS[f] for f in RADAR_FEATS]
-global_means  = [df[f].mean() for f in RADAR_FEATS]
+global_means  = dna.feature_means(df)
 
 fig_radar = go.Figure()
 fig_radar.add_trace(go.Scatterpolar(
@@ -305,24 +271,17 @@ st.markdown("<hr style='border-color:#333;margin-top:32px;margin-bottom:32px;'>"
 st.markdown("## Feature Distributions")
 st.markdown("<p style='color:#B3B3B3;margin-top:-8px;font-size:0.85rem;'>How the selected tracks spread across each audio feature. Log scale applied to zero-heavy features.</p>", unsafe_allow_html=True)
 
-dist_feats = [f for f in NORMALIZED_FEATURES + ["tempo"] if f in df.columns]
+dist_feats = dna.distribution_features(df)
 rows = [dist_feats[i:i + 4] for i in range(0, len(dist_feats), 4)]
 
 for row_feats in rows:
     cols = st.columns(len(row_feats))
     for col, feat in zip(cols, row_feats):
         vals = df[feat].dropna()
-        is_log = feat in ("instrumentalness", "speechiness")
-        if is_log and (vals > 0).sum() > 10:
-            log_vals = np.log10(vals[vals > 0] + 1e-4)
-            bins = np.linspace(log_vals.min(), log_vals.max(), 30)
-            hist_vals, bin_edges = np.histogram(log_vals, bins=bins)
-        else:
-            hist_vals, bin_edges = np.histogram(vals, bins=30)
-        x_centers = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(len(bin_edges) - 1)]
+        hist = dna.feature_histogram(vals, feat)
 
         fig_h = go.Figure(go.Bar(
-            x=x_centers, y=hist_vals,
+            x=hist.centers, y=hist.counts,
             marker=dict(color="#1DB954", line_width=0, opacity=0.85),
             hovertemplate="%{x:.3f}<br>Count: %{y}<extra></extra>",
         ))
@@ -354,7 +313,7 @@ for pl in sorted(selected_pl):
     sub = df_flt[df_flt["playlist_name"] == pl].drop_duplicates(subset="track_id")
     if sub.empty:
         continue
-    means = [sub[f].mean() for f in RADAR_FEATS]
+    means = dna.feature_means(sub)
     color = pl_colors[pl]
     r, g, b = _hex_to_rgb(color)
     fig_prc.add_trace(go.Scatterpolar(
@@ -389,8 +348,8 @@ st.markdown("<hr style='border-color:#333;margin-top:32px;margin-bottom:32px;'>"
 st.markdown("## Feature Correlation")
 st.markdown("<p style='color:#B3B3B3;margin-top:-8px;font-size:0.85rem;'>Pearson correlation across all audio features for the selected playlists.</p>", unsafe_allow_html=True)
 
-_corr_feats  = [f for f in AUDIO_FEATURES if f in df.columns]
-corr_matrix  = df[_corr_feats].dropna().corr(method="pearson").round(2)
+_corr_feats  = dna.correlation_features(df)
+corr_matrix  = dna.correlation_matrix(df, _corr_feats)
 feat_display = [FEAT_LABELS.get(f, f.capitalize()) for f in _corr_feats]
 
 fig_heat = go.Figure(go.Heatmap(
@@ -414,12 +373,7 @@ fig_heat.update_layout(**_layout(
 ))
 st.plotly_chart(fig_heat, width='stretch')
 
-corr_flat = (
-    corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-    .stack().reset_index()
-)
-corr_flat.columns = ["feat_a", "feat_b", "r"]
-top_corr = corr_flat.assign(abs_r=corr_flat["r"].abs()).sort_values("abs_r", ascending=False).head(3)
+top_corr = dna.top_correlations(corr_matrix)
 
 insight_cols = st.columns(3)
 for col, (_, row) in zip(insight_cols, top_corr.iterrows()):
@@ -440,29 +394,10 @@ st.markdown("<hr style='border-color:#333;margin-top:32px;margin-bottom:32px;'>"
 st.markdown("## Extreme Tracks")
 st.markdown("<p style='color:#B3B3B3;margin-top:-8px;font-size:0.85rem;'>The most extreme values for each audio feature within the selected playlists.</p>", unsafe_allow_html=True)
 
-outlier_feats = [
-    ("energy",           "Energy"),
-    ("acousticness",     "Acousticness"),
-    ("valence",          "Valence"),
-    ("danceability",     "Danceability"),
-    ("instrumentalness", "Instrumentalness"),
-    ("liveness",         "Liveness"),
-    ("loudness",         "Loudness (dB)"),
-    ("tempo",            "Tempo (BPM)"),
-    ("speechiness",      "Speechiness"),
-]
-
-for feat, label in outlier_feats:
+for feat, label in dna.EXTREME_FEATURES:
     if feat not in df.columns:
         continue
-    top5 = df.nlargest(5, feat)[["track_name", "artist_display", "playlist_name", feat]]
-    if feat in ("instrumentalness", "speechiness"):
-        non_zero = df[df[feat] > 0]
-        bot5 = (non_zero.nsmallest(5, feat) if len(non_zero) >= 5 else df.nsmallest(5, feat))[
-            ["track_name", "artist_display", "playlist_name", feat]
-        ]
-    else:
-        bot5 = df.nsmallest(5, feat)[["track_name", "artist_display", "playlist_name", feat]]
+    top5, bot5 = dna.extreme_tracks(df, feat)
 
     st.markdown(f"**{label}**")
     left, right = st.columns(2)
@@ -473,16 +408,7 @@ for feat, label in outlier_feats:
     ]:
         cards_html = f"<div style='font-size:0.72rem;color:#1DB954;font-weight:600;margin-bottom:8px;letter-spacing:0.05em;'>{icon} {extremity}</div>"
         for _, row in subset.iterrows():
-            if feat == "tempo":
-                val_display = f"{row[feat]:.1f}"
-            elif feat == "loudness":
-                val_display = f"{row[feat]:.1f}"
-            elif feat in ("instrumentalness", "speechiness"):
-                val_display = f"{row[feat]:.4f}"
-            else:
-                val_display = f"{row[feat]:.3f}"
-            if val_display in ("0.000", "0.0000", "0.0001"):
-                val_display = "< 0.001"
+            val_display = dna.format_extreme_value(row[feat], feat)
             pl_color = pl_colors.get(row["playlist_name"], "#1DB954")
             r, g, b = _hex_to_rgb(pl_color)
             cards_html += f"""

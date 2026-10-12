@@ -8,127 +8,33 @@ import pandas as pd
 import pytest
 from unittest.mock import patch
 
-RADAR_FEATS = ["energy", "acousticness", "valence", "danceability",
-               "speechiness", "instrumentalness", "liveness"]
-
-AUDIO_FEATURES = [
-    "energy", "acousticness", "valence", "danceability",
-    "speechiness", "instrumentalness", "liveness", "loudness", "tempo",
-]
-
-NORMALIZED_FEATURES = [
-    "energy", "acousticness", "valence", "danceability",
-    "speechiness", "instrumentalness", "liveness",
-]
-
-_PL_PALETTE = [
-    "#1DB954", "#E8534A", "#4A90D9", "#F5A623", "#B97FE8",
-    "#E8D44A", "#4AE8D4", "#E84A90", "#A8E84A", "#E8934A",
-    "#7B9EA8", "#C0392B", "#8E44AD", "#2ECC71",
-]
-
-FEAT_LABELS = {
-    "energy": "Energy", "acousticness": "Acousticness", "valence": "Valence",
-    "danceability": "Danceability", "speechiness": "Speechiness",
-    "instrumentalness": "Instrumentalness", "liveness": "Liveness",
-    "loudness": "Loudness", "tempo": "Tempo",
-}
+from config import AUDIO_FEATURES, NORMALIZED_FEATURES
+from core.audio_dna import (
+    RADAR_FEATURES as RADAR_FEATS,
+    FEATURE_LABELS as FEAT_LABELS,
+    mood_quadrants as compute_quadrants,
+    quadrant_pct as _quadrant_pct,
+    feature_means as compute_global_means,
+    playlist_feature_means as compute_playlist_means,
+    uses_log_scale as should_use_log_scale,
+    correlation_matrix as compute_correlation_matrix,
+    top_correlations as compute_top_correlations,
+    format_extreme_value,
+    extreme_tracks as compute_extreme_tracks,
+    marker_sizes as compute_marker_size,
+    feature_histogram,
+)
+from core.formatting import short_name as _short_name
+from ui.charts import (
+    PLAYLIST_PALETTE as _PL_PALETTE,
+    hex_to_rgb as _hex_to_rgb,
+    playlist_color_map as _playlist_color_map,
+)
 
 
-# ---------------------------------------------------------------------------
-# Helpers — mirrors pure logic from 5_Audio_DNA.py
-# ---------------------------------------------------------------------------
-
-def _short_name(name: str, max_len: int = 22) -> str:
-    return name if len(name) <= max_len else name[:max_len - 1] + "…"
-
-
-def _hex_to_rgb(hex_color: str):
-    h = hex_color.lstrip("#")
-    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-
-
-def _playlist_color_map(playlists):
-    return {pl: _PL_PALETTE[i % len(_PL_PALETTE)] for i, pl in enumerate(sorted(playlists))}
-
-
-def compute_quadrants(df: pd.DataFrame) -> dict:
-    return {
-        "Happy":     df[(df["valence"] >= 0.5) & (df["energy"] >= 0.5)],
-        "Turbulent": df[(df["valence"] <  0.5) & (df["energy"] >= 0.5)],
-        "Peaceful":  df[(df["valence"] >= 0.5) & (df["energy"] <  0.5)],
-        "Dark":      df[(df["valence"] <  0.5) & (df["energy"] <  0.5)],
-    }
-
-
+# Adapters: the page-level mirrors used (subset, total) frames; the real code takes counts.
 def quadrant_pct(subset: pd.DataFrame, total: pd.DataFrame) -> float:
-    return len(subset) / len(total) * 100 if len(total) else 0.0
-
-
-def compute_global_means(df: pd.DataFrame, feats: list) -> list:
-    return [df[f].mean() for f in feats]
-
-
-def compute_playlist_means(df: pd.DataFrame, pl: str, feats: list) -> list:
-    sub = df[df["playlist_name"] == pl].drop_duplicates(subset="track_id")
-    return [sub[f].mean() for f in feats]
-
-
-def should_use_log_scale(vals: pd.Series, feat: str) -> bool:
-    return feat in ("instrumentalness", "speechiness") and (vals > 0).sum() > 10
-
-
-def compute_feature_histogram(vals: pd.Series, feat: str, n_bins: int = 30):
-    if should_use_log_scale(vals, feat):
-        pos = vals[vals > 0]
-        log_vals = np.log10(pos + 1e-4)
-        bins = np.linspace(log_vals.min(), log_vals.max(), n_bins)
-        hist_vals, bin_edges = np.histogram(log_vals, bins=bins)
-    else:
-        hist_vals, bin_edges = np.histogram(vals, bins=n_bins)
-    return hist_vals, bin_edges
-
-
-def compute_correlation_matrix(df: pd.DataFrame, feats: list) -> pd.DataFrame:
-    return df[feats].dropna().corr(method="pearson").round(2)
-
-
-def compute_top_correlations(corr_matrix: pd.DataFrame, n: int = 3) -> pd.DataFrame:
-    mask = np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
-    flat = corr_matrix.where(mask).stack().reset_index()
-    flat.columns = ["feat_a", "feat_b", "r"]
-    return flat.assign(abs_r=flat["r"].abs()).sort_values("abs_r", ascending=False).head(n)
-
-
-def format_extreme_value(val: float, feat: str) -> str:
-    if feat == "tempo":
-        result = f"{val:.1f}"
-    elif feat == "loudness":
-        result = f"{val:.1f}"
-    elif feat in ("instrumentalness", "speechiness"):
-        result = f"{val:.4f}"
-    else:
-        result = f"{val:.3f}"
-    if result in ("0.000", "0.0000", "0.0001"):
-        return "< 0.001"
-    return result
-
-
-def compute_extreme_tracks(df: pd.DataFrame, feat: str, n: int = 5):
-    top = df.nlargest(n, feat)[["track_name", "artist_display", "playlist_name", feat]]
-    if feat in ("instrumentalness", "speechiness"):
-        non_zero = df[df[feat] > 0]
-        bot = (non_zero.nsmallest(n, feat) if len(non_zero) >= n
-               else df.nsmallest(n, feat))[["track_name", "artist_display", "playlist_name", feat]]
-    else:
-        bot = df.nsmallest(n, feat)[["track_name", "artist_display", "playlist_name", feat]]
-    return top, bot
-
-
-def compute_marker_size(sub: pd.DataFrame) -> list:
-    if "popularity_raw" in sub.columns:
-        return (sub["popularity_raw"].astype(float).fillna(0.0) / 100 * 8 + 3).tolist()
-    return [6] * len(sub)
+    return _quadrant_pct(len(subset), len(total))
 
 
 # ---------------------------------------------------------------------------
@@ -345,14 +251,14 @@ class TestFeatureDistributions:
 
     def test_histogram_returns_correct_structure(self, sample_df):
         vals = sample_df["energy"].dropna()
-        hist_vals, bin_edges = compute_feature_histogram(vals, "energy")
-        assert len(hist_vals) == len(bin_edges) - 1
-        assert hist_vals.sum() == len(vals)
+        h = feature_histogram(vals, "energy")
+        assert len(h.counts) == len(h.centers)
+        assert h.counts.sum() == len(vals)
 
     def test_log_histogram_bin_count(self, sample_df):
         vals = sample_df["speechiness"].dropna()
-        hist_vals, bin_edges = compute_feature_histogram(vals, "speechiness", n_bins=30)
-        assert len(hist_vals) == len(bin_edges) - 1
+        h = feature_histogram(vals, "speechiness", n_bins=30)
+        assert len(h.counts) == len(h.centers)
 
 
 # ---------------------------------------------------------------------------
