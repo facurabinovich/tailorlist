@@ -2,7 +2,7 @@
 
 Pure logic behind the Enrich page: which tracks still need enriching, how a fetch result
 is classified, the records stored per outcome, progress/ETA math and the wait-message
-tier. The network calls (ReccoBeats, fallback DB) stay in pipeline/enrich.py; the
+tier. The network calls (ReccoBeats, fallback DB) stay in spotify/reccobeats.py; the
 session-state flow lives in app_state/enrichment.py.
 
 Vocabulary:

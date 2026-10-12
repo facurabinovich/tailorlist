@@ -95,7 +95,7 @@ hacer la revisión final.
 - **H2:** el comentario de `6_My_Clusters.py:20-21` está desactualizado (Cluster
   Results no importa de My Clusters). **RESUELTO en T28.**
 - **H3:** `_Enrich.py` importa funciones privadas de `pipeline/enrich.py` (fuera
-  de alcance).
+  de alcance). **RESUELTO en T28:** las tres funciones pasan a `spotify/reccobeats.py` con nombres públicos y `pipeline/` se elimina (decisión de Facu).
 - **H4:** `load_dotenv` se llama en 5 módulos de la app, uno con
   `override=True`. El `.env` local pisa variables del entorno, y el
   resultado depende del orden de importación. Se resuelve en T5.

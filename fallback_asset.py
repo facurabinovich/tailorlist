@@ -7,7 +7,7 @@ container into data/audio_fallback.db; locally the file is normally already
 present, in which case this module does nothing.
 
 The download runs on a background thread so the app serves immediately.
-pipeline.enrich._fetch_fallback() guards on os.path.exists(), so until the
+spotify.reccobeats.fetch_fallback_features() guards on os.path.exists(), so until the
 file lands a ReccoBeats "skip" simply falls through to uc_skipped — the same
 behaviour as when no fallback DB is configured at all.
 
@@ -25,7 +25,7 @@ import time
 
 logger = logging.getLogger(__name__)
 
-# Must stay in sync with pipeline/enrich.py::_FALLBACK_DB
+# Must stay in sync with spotify/reccobeats.py::_FALLBACK_DB
 FALLBACK_DB = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "data", "audio_fallback.db"
 )

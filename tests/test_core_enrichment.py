@@ -131,9 +131,9 @@ def state():
 
 def _run(track, fetch, fallback=None, mapped=None):
     from app_state.enrichment import process_track
-    with patch("pipeline.enrich._fetch", fetch), \
-         patch("pipeline.enrich._fetch_fallback", lambda sid: fallback), \
-         patch("pipeline.enrich._map_fields", lambda sid, raw: mapped):
+    with patch("spotify.reccobeats.fetch_audio_features", fetch), \
+         patch("spotify.reccobeats.fetch_fallback_features", lambda sid: fallback), \
+         patch("spotify.reccobeats.map_audio_features", lambda sid, raw: mapped):
         process_track(track)
 
 

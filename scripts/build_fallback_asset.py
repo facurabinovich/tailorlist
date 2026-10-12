@@ -4,7 +4,7 @@ Rebuild data/audio_fallback.db into a compact release asset.
 The original table is a rowid table plus a separate non-unique index on
 spotify_id. Rebuilding it WITHOUT ROWID with spotify_id as the primary key
 drops that second B-tree and the rowid indirection: 469 MB -> ~360 MB, with
-identical table and column names, so pipeline.enrich._fetch_fallback() reads
+identical table and column names, so spotify.reccobeats.fetch_fallback_features() reads
 it unchanged.
 
 Run once, locally, then upload the output as a GitHub Release asset and point

@@ -2,7 +2,7 @@
 
 Reads/writes the ``uc_*`` session keys and the persistence/analytics side effects of a run.
 The decisions themselves are pure and live in core/enrichment.py; the ReccoBeats and
-fallback lookups live in pipeline/enrich.py. Widgets, HTML and navigation stay in the page.
+fallback lookups live in spotify/reccobeats.py. Widgets, HTML and navigation stay in the page.
 
 Session keys owned here:
   uc_enriched / uc_skipped / uc_failed   result lists (enriched survives runs; the other two
@@ -195,7 +195,11 @@ def process_track(track: dict) -> None:
     ReccoBeats first (an exception counts as failed); on "skip" the fallback DB is tried
     before the track is recorded as skipped. The caller sleeps, advances the cursor and reruns.
     """
-    from pipeline.enrich import _fetch, _map_fields, _fetch_fallback
+    from spotify.reccobeats import (
+        fetch_audio_features as _fetch,
+        fetch_fallback_features as _fetch_fallback,
+        map_audio_features as _map_fields,
+    )
     sid = track["id"]
 
     try:
